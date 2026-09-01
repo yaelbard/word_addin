@@ -89,10 +89,7 @@ let conversationHistory = [
 ];
 
 Office.onReady((info) => {
-  if (info.host === Office.HostType.Word) {
-    document.getElementById("sideload-msg").style.display = "none";
-    document.getElementById("app-body").style.display = "flex";
-    
+  if (info.host === Office.HostType.Word) {    
     const sendBtn = document.getElementById("send-btn");
     const inputArea = document.getElementById("prompt-input");
 
