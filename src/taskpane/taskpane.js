@@ -14,7 +14,7 @@ const CONFIG = {
   // פרטי ה-Entra ID שלך (ציבוריים, מותר להעלות ל-GitHub)
   clientId: "2603315b-9e9f-4b43-b2fd-3de9ff9c41bd", 
   tenantId: "73ea3442-65e1-4556-a609-904f5d2e45ab", 
-  redirectUri: "https://yaelbard.github.io/word_addin/taskpane.htm"
+  redirectUri: "https://yaelbard.github.io/word_addin/src/taskpane/taskpane.html"
 };
 
 // 2. הגדרת ספריית MSAL לאימות מול Entra ID
