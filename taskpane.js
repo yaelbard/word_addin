@@ -12,9 +12,9 @@ const CONFIG = {
   apiVersion: "2024-08-01-preview",
   
   // פרטי ה-Entra ID שלך (ציבוריים, מותר להעלות ל-GitHub)
-  clientId: "YOUR_APPLICATION_CLIENT_ID_HERE", 
-  tenantId: "YOUR_TENANT_ID_HERE", 
-  redirectUri: "https://<your-username>.github.io/<repo-name>/taskpane.html"
+  clientId: "2603315b-9e9f-4b43-b2fd-3de9ff9c41bd", 
+  tenantId: "73ea3442-65e1-4556-a609-904f5d2e45ab", 
+  redirectUri: "https://yaelbard.github.io/word_addin/taskpane.htm"
 };
 
 // 2. הגדרת ספריית MSAL לאימות מול Entra ID
