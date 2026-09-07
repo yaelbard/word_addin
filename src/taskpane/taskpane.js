@@ -5,50 +5,54 @@
 
 
 const CONFIG = {
-  //endpoint: "https://gpt-agents-1972-foundry.services.ai.azure.com/api/projects/gpt-agents-1972-proj/openai/v1/responses",
   deployment: "gpt-5.6-sol",
   endpoint: "https://gpt-agents-1972-foundry.openai.azure.com",
   apiVersion: "2025-01-01-preview",
   clientId: "2603315b-9e9f-4b43-b2fd-3de9ff9c41bd", 
-  tenantId: "73ea3442-65e1-4556-a609-904f5d2e45ab", 
-  //redirectUri: "https://yaelbard.github.io/word_addin/src/taskpane/taskpane.html"
+  tenantId: "73ea3442-65e1-4556-a609-904f5d2e45ab"
 };
-// defining the worker source for pdf.js to enable PDF text extraction
+
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
-const cleanUrl = window.location.origin + window.location.pathname;
-// מוודא שהכתובת מצביעה תמיד על auth-redirect.html ולא על taskpane.html
-const redirectPageUri = cleanUrl.replace('taskpane.html', 'auth-redirect.html');
+
+// בנייה בטוחה של כתובת ה-redirect
+const redirectPageUri = new URL("auth-redirect.html", window.location.href).href;
 
 const msalConfig = {
   auth: {
     clientId: CONFIG.clientId,
     authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
-    redirectUri: redirectPageUri // חייב להפנות לקובץ ה-redirect!
+    redirectUri: redirectPageUri,
+    navigateToLoginRequestUrl: false // מונע מ-MSAL לנסות לנווט בחזרה בתוך הפופאפ
   },
   cache: {
     cacheLocation: "localStorage",
-    storeAuthStateInCookie: true
+    storeAuthStateInCookie: true // עוזר לבעיות של דפדפנים בתוך אופיס
   }
 };
+
 const msalInstance = new msal.PublicClientApplication(msalConfig);
 
-// smart function to get an access token (prompts for login if necessary)
+// פונקציית האימות
 async function getAccessToken() {
-  // entra ID scopes required to directly access Azure OpenAI
+  // חובה לאתחל את MSAL (רצוי לעשות זאת פעם אחת כשהתוסף עולה)
+  await msalInstance.initialize();
+
   const loginRequest = {
     scopes: ["https://cognitiveservices.azure.com/.default"] 
   };
 
   try {
     const accounts = msalInstance.getAllAccounts();
-    //if the user is not logged in at all, open a login window    
+    
+    // אם המשתמש לא מחובר, נפתח חלון
     if (accounts.length === 0) {
       const loginResponse = await msalInstance.loginPopup(loginRequest);
       return loginResponse.accessToken;
     }
-    //try to get a silent token (no window) for the already logged-in user
+    
+    // ניסיון לקבל טוקן שקט
     const silentResponse = await msalInstance.acquireTokenSilent({
       ...loginRequest,
       account: accounts[0]
@@ -57,12 +61,16 @@ async function getAccessToken() {
 
   } catch (error) {
     console.warn("Silent token acquisition failed. Acquiring token using popup...", error);
-    //opens a popup for the user to re-authenticate if silent token acquisition fails (e.g., token expired)
-    const popupResponse = await msalInstance.acquireTokenPopup(loginRequest);
-    return popupResponse.accessToken;
+    try {
+        // במידה והטוקן פג תוקף, נפתח פופאפ שוב
+        const popupResponse = await msalInstance.acquireTokenPopup(loginRequest);
+        return popupResponse.accessToken;
+    } catch (popupError) {
+        console.error("Popup authentication failed:", popupError);
+        throw popupError;
+    }
   }
 }
-
 //system prompt for the AI assistant, defining its behavior and response format
 const SYSTEM_PROMPT = `AI Word assistant. Analyze full doc context directly without relying on mouse selection. Use natural Hebrew.
 Output STRICT JSON:
