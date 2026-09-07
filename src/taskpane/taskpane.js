@@ -3,10 +3,6 @@
  * See LICENSE in the project root for license information.
  */
 
-/* global document, Office, Word, msal */
-import * as mammoth from "mammoth";
-import * as pdfjsLib from "pdfjs-dist";
-import "pdfjs-dist/build/pdf.worker.mjs";
 
 const CONFIG = {
   //endpoint: "https://gpt-agents-1972-foundry.services.ai.azure.com/api/projects/gpt-agents-1972-proj/openai/v1/responses",
@@ -17,6 +13,10 @@ const CONFIG = {
   tenantId: "73ea3442-65e1-4556-a609-904f5d2e45ab", 
   //redirectUri: "https://yaelbard.github.io/word_addin/src/taskpane/taskpane.html"
 };
+// defining the worker source for pdf.js to enable PDF text extraction
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
 
 const cleanUrl = window.location.origin + window.location.pathname;
 const dynamicRedirectUri = cleanUrl.replace('taskpane.html', 'auth-redirect.html');
