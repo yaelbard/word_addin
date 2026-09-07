@@ -1,24 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <!-- נטען רק את MSAL כדי שידע לסגור את החלון -->
+    <meta charset="UTF-8" />
+    <title>Authenticating...</title>
     <script type="text/javascript" src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
 </head>
 <body>
     <script>
-        // MSAL מזהה אוטומטית שהוא רץ בתוך חלון קופץ (Popup)
-        // הוא מעביר את המידע לחלון הראשי (Taskpane) וסוגר את עצמו
-        const msalInstance = new msal.PublicClientApplication({
+        const msalConfig = {
             auth: {
+                
                 clientId: "2603315b-9e9f-4b43-b2fd-3de9ff9c41bd", 
                 authority: "https://login.microsoftonline.com/73ea3442-65e1-4556-a609-904f5d2e45ab" 
+            },
+            cache: {
+                cacheLocation: "sessionStorage",
+                storeAuthStateInCookie: false
             }
-        });
-        
-        // אתחול שמטפל בהחזרת הטוקן וסגירת החלון
-        msalInstance.initialize().then(() => {
-            msalInstance.handleRedirectPromise();
-        });
+        };
+
+        const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+        msalInstance.handleRedirectPromise()
+            .then((response) => {
+                // מנווט חזרה ל-taskpane.html באותו נתיב בדיוק
+                const targetUrl = window.location.href.replace("auth-redirect.html", "taskpane.html");
+                window.location.replace(targetUrl);
+            })
+            .catch((error) => {
+                console.error("Redirect error:", error);
+            });
     </script>
 </body>
 </html>
+
