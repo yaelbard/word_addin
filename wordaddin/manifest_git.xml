@@ -9,7 +9,10 @@
   <HighResolutionIconUrl DefaultValue="https://yaelbard.github.io/word_addin/assets/icon-64.png"/>
   <SupportUrl DefaultValue="https://www.contoso.com/help"/>
   <AppDomains>
-    <AppDomain>https://www.contoso.com</AppDomain>
+    <AppDomain>https://yaelbard.github.io</AppDomain>
+    <AppDomain>https://login.microsoftonline.com</AppDomain>
+    <AppDomain>https://alcdn.msauth.net</AppDomain>
+    <AppDomain>https://gpt-agents-1972-foundry.openai.azure.com</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Document"/>
