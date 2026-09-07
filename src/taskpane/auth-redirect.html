@@ -9,27 +9,22 @@
     <script>
         const msalConfig = {
             auth: {
-                
                 clientId: "2603315b-9e9f-4b43-b2fd-3de9ff9c41bd", 
                 authority: "https://login.microsoftonline.com/73ea3442-65e1-4556-a609-904f5d2e45ab" 
             },
             cache: {
-                cacheLocation: "sessionStorage",
-                storeAuthStateInCookie: false
+                cacheLocation: "localStorage",
+                storeAuthStateInCookie: true
             }
         };
 
         const msalInstance = new msal.PublicClientApplication(msalConfig);
 
-        msalInstance.handleRedirectPromise()
-            .then((response) => {
-                // מנווט חזרה ל-taskpane.html באותו נתיב בדיוק
-                const targetUrl = window.location.href.replace("auth-redirect.html", "taskpane.html");
-                window.location.replace(targetUrl);
-            })
-            .catch((error) => {
-                console.error("Redirect error:", error);
-            });
+        msalInstance.initialize().then(() => {
+            return msalInstance.handleRedirectPromise();
+        }).catch((error) => {
+            console.error("Popup auth error:", error);
+        });
     </script>
 </body>
 </html>

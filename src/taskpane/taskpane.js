@@ -17,23 +17,21 @@ const CONFIG = {
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
-
 const cleanUrl = window.location.origin + window.location.pathname;
-const dynamicRedirectUri = cleanUrl.replace('taskpane.html', 'auth-redirect.html');
+// מוודא שהכתובת מצביעה תמיד על auth-redirect.html ולא על taskpane.html
+const redirectPageUri = cleanUrl.replace('taskpane.html', 'auth-redirect.html');
 
-// MSAL configuration for Entra ID authentication
 const msalConfig = {
   auth: {
     clientId: CONFIG.clientId,
     authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
-    redirectUri: dynamicRedirectUri
+    redirectUri: redirectPageUri // חייב להפנות לקובץ ה-redirect!
   },
   cache: {
-    cacheLocation: "sessionStorage",
-    storeAuthStateInCookie: false
+    cacheLocation: "localStorage",
+    storeAuthStateInCookie: true
   }
 };
-
 const msalInstance = new msal.PublicClientApplication(msalConfig);
 
 // smart function to get an access token (prompts for login if necessary)
