@@ -4,101 +4,53 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Word Assistant</title>
+  
+  <!-- Office and MSAL JavaScript Libraries -->
   <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script type="text/javascript" src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
-  <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      height: 95vh;
-      background-color: #f9f9fb;
-      direction: rtl;
-      text-align: right;
-    }
-    #chat-box {
-      flex: 1;
-      overflow-y: auto;
-      border: 1px solid #e1dfdd;
-      border-radius: 6px;
-      padding: 10px;
-      background: #ffffff;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .msg {
-      padding: 8px 12px;
-      border-radius: 6px;
-      max-width: 88%;
-      font-size: 13px;
-      line-height: 1.5;
-      white-space: pre-wrap;
-      direction: rtl;
-      text-align: right;
-    }
-    .user {
-      align-self: flex-start;
-      background-color: #0078d4;
-      color: #ffffff;
-    }
-    .assistant {
-      align-self: flex-end;
-      background-color: #f3f2f1;
-      color: #323130;
-      border: 1px solid #edebe9;
-    }
-    .system-notice {
-      font-size: 11px;
-      color: #0078d4;
-      margin-top: 4px;
-      font-weight: bold;
-    }
-    #input-container {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: 10px;
-    }
-    textarea {
-      width: 100%;
-      box-sizing: border-box;
-      resize: none;
-      height: 65px;
-      border: 1px solid #8a8886;
-      border-radius: 4px;
-      padding: 8px;
-      font-family: inherit;
-      font-size: 13px;
-      direction: rtl;
-      text-align: right;
-    }
-    #send-btn {
-      width: 100%;
-      background-color: #0078d4;
-      color: white;
-      border: none;
-      padding: 10px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 14px;
-    }
-    #send-btn:hover {
-      background-color: #106ebe;
-    }
-  </style>
+  
+  <!-- External Stylesheet -->
+  <link rel="stylesheet" href="taskpane.css" />
 </head>
 <body>
+
+  <!-- Chat conversation area -->
   <div id="chat-box">
-    <div class="msg assistant">שלום! איך אוכל לעזור היום?</div>
+    <div class="msg assistant">שלום! איך אפשר לעזור לך?</div>
   </div>
 
+  <!-- User input and controls container -->
   <div id="input-container">
     <textarea id="prompt-input" placeholder="הקלידי בקשה... (לחצי Enter לשליחה)"></textarea>
-    <button id="send-btn">שלח</button>
+
+<div class="actions-row">
+      <label for="doc-upload" class="file-upload-btn">
+        📎 העלאת מסמך
+      </label>
+      <input type="file" id="doc-upload" style="display: none;" accept=".txt,.docx,.pdf,.json,.md" />
+
+      <button id="send-btn">שלח</button>
+    </div>
+
+    <!-- Attached document badge / preview card -->
+    <div id="file-attached-card" style="display: none;">
+      <div class="file-info">
+        <span class="file-icon">📄</span>
+        <div class="file-text">
+          <span id="attached-file-name" class="file-name"></span>
+          <span id="attached-file-size" class="file-size"></span>
+        </div>
+      </div>
+      <button id="remove-file-btn" class="remove-btn" title="הסר קובץ" type="button">✕</button>
+    </div>
+
+    <!-- Loading spinner indicator (hidden by default) -->
+    <div id="loadingIndicator" style="display: none;">
+      <div class="loader"></div>
+      <p>טוען תשובה...</p>
+    </div>
+
+    <div id="chatResponse"></div>
   </div>
 
   <script src="taskpane.js"></script>
