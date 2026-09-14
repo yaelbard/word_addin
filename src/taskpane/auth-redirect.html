@@ -18,86 +18,88 @@
     <p id="auth-status-text">מתחבר ל-Entra ID...</p>
   </div>
 
-  <script>
-    Office.onReady(async () => {
-      try {
-        // שליפת המזהים שהועברו ב-Query Parameters מ-taskpane.js
+<script>
+  Office.onReady(async () => {
+    try {
+      // שליפה ישירה מה-localStorage המשותף לדומיין
+      let clientId = localStorage.getItem("entra_clientId");
+      let tenantId = localStorage.getItem("entra_tenantId");
+
+      // בדיקת גיבוי מפרמטרי ה-URL אם לא נמצא ב-localStorage
+      if (!clientId || !tenantId) {
         const urlParams = new URLSearchParams(window.location.search);
-        const clientId = urlParams.get("clientId");
-        const tenantId = urlParams.get("tenantId");
+        clientId = clientId || urlParams.get("clientId");
+        tenantId = tenantId || urlParams.get("tenantId");
+      }
 
-        if (!clientId || !tenantId) {
-          throw new Error("Missing clientId or tenantId in URL parameters");
+      // אם עדיין חסר, זורקים שגיאה ברורה
+      if (!clientId || !tenantId) {
+        throw new Error(`Missing Credentials! clientId: ${clientId}, tenantId: ${tenantId}`);
+      }
+
+      const cleanRedirectUri = window.location.origin + window.location.pathname;
+
+      const msalConfig = {
+        auth: {
+          clientId: clientId,
+          authority: `https://login.microsoftonline.com/${tenantId}`,
+          redirectUri: cleanRedirectUri
+        },
+        cache: {
+          cacheLocation: "localStorage",
+          storeAuthStateInCookie: true
         }
+      };
 
-        // נתיב ה-Redirect הרשום ב-Azure (חייב להיות נקי מפרמטרים)
-        const cleanRedirectUri = window.location.origin + window.location.pathname;
+      const msalInstance = new msal.PublicClientApplication(msalConfig);
+      await msalInstance.initialize();
 
-        const msalConfig = {
-          auth: {
-            clientId: clientId,
-            authority: `https://login.microsoftonline.com/${tenantId}`,
-            redirectUri: cleanRedirectUri
-          },
-          cache: {
-            cacheLocation: "localStorage",
-            storeAuthStateInCookie: true
-          }
-        };
+      const authParameters = {
+        scopes: ["https://cognitiveservices.azure.com/.default"]
+      };
 
-        const msalInstance = new msal.PublicClientApplication(msalConfig);
-        await msalInstance.initialize();
+      const response = await msalInstance.handleRedirectPromise();
+      if (response) {
+        const statusElem = document.getElementById("auth-status-text");
+        if (statusElem) statusElem.innerText = "ההתחברות הצליחה, מעביר נתונים...";
+        Office.context.ui.messageParent(JSON.stringify({
+          status: "success",
+          token: response.accessToken
+        }));
+        return;
+      }
 
-        const authParameters = {
-          scopes: ["https://cognitiveservices.azure.com/.default"]
-        };
-
-        // שלב 1: האזנה לחזרה מתהליך ההתחברות (Redirect)
-        const response = await msalInstance.handleRedirectPromise();
-
-        if (response) {
-          const statusElem = document.getElementById("auth-status-text");
-          if (statusElem) statusElem.innerText = "ההתחברות הצליחה, מעביר נתונים...";
-          
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        try {
+          const silentResponse = await msalInstance.acquireTokenSilent({
+            ...authParameters,
+            account: accounts[0]
+          });
           Office.context.ui.messageParent(JSON.stringify({
             status: "success",
-            token: response.accessToken
+            token: silentResponse.accessToken
           }));
           return;
+        } catch (silentError) {
+          console.warn("Silent token acquisition failed, redirecting...", silentError);
         }
-
-        // שלב 2: ניסיון קבלת טוקן שקט אם החשבון כבר קיים במטמון
-        const accounts = msalInstance.getAllAccounts();
-        if (accounts.length > 0) {
-          try {
-            const silentResponse = await msalInstance.acquireTokenSilent({
-              ...authParameters,
-              account: accounts[0]
-            });
-            Office.context.ui.messageParent(JSON.stringify({
-              status: "success",
-              token: silentResponse.accessToken
-            }));
-            return;
-          } catch (silentError) {
-            console.warn("Silent token acquisition failed, redirecting...", silentError);
-          }
-        }
-
-        // שלב 3: הפניה למסך הכניסה של Entra ID בתוך חלון הדיאלוג
-        await msalInstance.loginRedirect(authParameters);
-
-      } catch (error) {
-        console.error("Auth redirect error:", error);
-        const statusElem = document.getElementById("auth-status-text");
-        if (statusElem) statusElem.innerText = "אירעה שגיאה בתהליך ההתחברות.";
-        
-        Office.context.ui.messageParent(JSON.stringify({
-          status: "error",
-          error: error.message || "Authentication failed"
-        }));
       }
-    });
-  </script>
+
+      await msalInstance.loginRedirect(authParameters);
+
+    } catch (error) {
+      console.error("Auth redirect error:", error);
+      const statusElem = document.getElementById("auth-status-text");
+      if (statusElem) {
+        statusElem.innerText = "שגיאה: " + error.message;
+      }
+      Office.context.ui.messageParent(JSON.stringify({
+        status: "error",
+        error: error.message || "Authentication failed"
+      }));
+    }
+  });
+</script>
 </body>
 </html>

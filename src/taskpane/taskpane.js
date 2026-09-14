@@ -46,11 +46,19 @@ async function initMsal() {
  */
 function openLoginDialog() {
   return new Promise((resolve, reject) => {
-    const dialogUrl = new URL("auth-redirect.html", window.location.href);
-    dialogUrl.searchParams.set("clientId", CONFIG.clientId);
-    dialogUrl.searchParams.set("tenantId", CONFIG.tenantId);
+    // שמירת המזהים ישירות ב-localStorage המשותף
+    if (!CONFIG || !CONFIG.clientId || !CONFIG.tenantId) {
+      reject(new Error("CONFIG.clientId or CONFIG.tenantId is missing in taskpane.js"));
+      return;
+    }
+    localStorage.setItem("entra_clientId", CONFIG.clientId);
+    localStorage.setItem("entra_tenantId", CONFIG.tenantId);
+
+    // נתיב הדיאלוג נשאר נקי וקבוע
+    const dialogUrl = new URL("auth-redirect.html", window.location.href).href;
+
     Office.context.ui.displayDialogAsync(
-      redirectPageUri,
+      dialogUrl,
       { height: 60, width: 35, displayInIframe: false },
       (asyncResult) => {
         if (asyncResult.status === Office.AsyncResultStatus.Failed) {
@@ -60,7 +68,6 @@ function openLoginDialog() {
 
         const dialog = asyncResult.value;
 
-        // האזנה להודעות שנשלחות מחלון הדיאלוג
         dialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
           dialog.close();
           try {
@@ -75,7 +82,6 @@ function openLoginDialog() {
           }
         });
 
-        // טיפול בסגירה ידנית של החלון על ידי המשתמש
         dialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
           if (arg.error === 12006) {
             reject(new Error("Login window was closed by the user."));
