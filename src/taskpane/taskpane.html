@@ -9,6 +9,7 @@
   <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script type="text/javascript" src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
   <script type="text/javascript" src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
   
   <!-- External Stylesheet -->
@@ -29,8 +30,7 @@
       <label for="doc-upload" class="file-upload-btn">
         📎 העלאת מסמך
       </label>
-      <input type="file" id="doc-upload" style="display: none;" accept=".txt,.docx,.pdf,.json,.md" />
-
+      <input type="file" id="doc-upload" style="display: none;" multiple accept=".txt,.docx,.pdf,.xlsx,.xls,.json,.md" />
       <button id="send-btn">שלח</button>
     </div>
 

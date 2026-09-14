@@ -42,7 +42,7 @@ async function initMsal() {
 }
 
 /**
- * פתיחת חלון אימות דרך Office Dialog API במקום window.open
+ * פתיחת חלון אימות דרך Office Dialog API
  */
 function openLoginDialog() {
   return new Promise((resolve, reject) => {
@@ -59,7 +59,7 @@ function openLoginDialog() {
 
     Office.context.ui.displayDialogAsync(
       dialogUrl,
-      { height: 60, width: 35, displayInIframe: false },
+      { height: 70, width: 60, displayInIframe: false },
       (asyncResult) => {
         if (asyncResult.status === Office.AsyncResultStatus.Failed) {
           reject(new Error(`Failed to open dialog: ${asyncResult.error.message}`));
@@ -139,14 +139,17 @@ Rules:
 1. Pure styling (underline, bold, italic, font change): action="format_text", target_text="EXACT target word/phrase only", set requested fields in format object (e.g. {"underline": true}). Do not touch or rewrite other words.
 2. Edit/Replace text content: action="replace_text", target_text="EXACT doc text segment (under 200 chars)", action_text="new plain text".
 3. Chat/Q&A: action="none". Full rewrite: action="replace_all". Append: action="insert_end".
-4. RTL & right-aligned Hebrew phrasing.`;
+4. RTL & right-aligned Hebrew phrasing.
+5. Line breaks: Never use multiple empty lines; at most a single newline.
+`;
+
 
 let conversationHistory = [
   { role: "system", content: SYSTEM_PROMPT }
 ];
 
 // Variables to store the uploaded document data
-let uploadedFile = null;
+let uploadedFile = [];
 let uploadedFileText = "";
 
 Office.onReady((info) => {
@@ -177,60 +180,93 @@ Office.onReady((info) => {
   }
 });
 
-// File upload handler
 async function handleFileUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  uploadedFile = file;
-
-  // הצגת תגית הקובץ המצורף בממשק
+  const files = Array.from(event.target.files);
+  if (!files || files.length === 0) return;
+  uploadedFiles = files;
   const card = document.getElementById("file-attached-card");
   const nameEl = document.getElementById("attached-file-name");
   const sizeEl = document.getElementById("attached-file-size");
 
   if (card && nameEl && sizeEl) {
-    nameEl.innerText = file.name;
-    sizeEl.innerText = formatFileSize(file.size);
+    if (files.length === 1) {
+      nameEl.innerText = files[0].name;
+      sizeEl.innerText = formatFileSize(files[0].size);
+    } else {
+      const totalSize = files.reduce((acc, f) => acc + f.size, 0);
+      nameEl.innerText = `${files.length} קבצים צורפו`;
+      sizeEl.innerText = formatFileSize(totalSize);
+    }
     card.style.display = "flex";
   }
-
-  const fileExtension = file.name.split(".").pop().toLowerCase();
-  const reader = new FileReader();
-
   try {
+    const parsedTexts = await Promise.all(files.map(file => parseSingleFile(file)));
+    uploadedFileText = parsedTexts.join("\n");
+
+    console.log(`חולצו בהצלחה ${files.length} קבצים. אורך טקסט כולל:`, uploadedFileText.length);
+
+  } catch (err) {
+    console.error("שגיאה בפענוח הקבצים:", err);
+    appendMessage("assistant", `שגיאה בפענוח הקבצים: ${err.message}`);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function parseSingleFile(file) {
+  return new Promise((resolve, reject) => {
+    const fileExtension = file.name.split(".").pop().toLowerCase();
+    const reader = new FileReader();
+
+    reader.onerror = () => reject(new Error(`קריאת הקובץ ${file.name} נכשלה`));
+
     if (fileExtension === "docx") {
-      //docx files (using mammoth.js)
       reader.onload = async (e) => {
-        const arrayBuffer = e.target.result;
-        const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
-        uploadedFileText = result.value;
-        console.log("חולץ טקסט מ-DOCX, אורך:", uploadedFileText.length);
+        try {
+          const text = await extractTextFromDocx(e.target.result);
+          resolve(`--- תוכן קובץ Word: ${file.name} ---\n${text.trim()}\n`);
+        } catch (err) {
+          reject(err);
+        }
       };
       reader.readAsArrayBuffer(file);
 
     } else if (fileExtension === "pdf") {
-      //pdf files (using pdfjs-dist)
       reader.onload = async (e) => {
-        const arrayBuffer = e.target.result;
-        uploadedFileText = await extractTextFromPdf(arrayBuffer);
-        console.log("חולץ טקסט מ-PDF, אורך:", uploadedFileText.length);
+        try {
+          const text = await extractTextFromPdf(e.target.result);
+          resolve(`--- תוכן קובץ PDF: ${file.name} ---\n${text.trim()}\n`);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+
+    } else if (fileExtension === "xlsx" || fileExtension === "xls") {
+      reader.onload = async (e) => {
+        try {
+          const text = await extractTextFromExcel(e.target.result);
+          resolve(`--- תוכן קובץ Excel: ${file.name} ---\n${text.trim()}\n`);
+        } catch (err) {
+          reject(new Error(`שגיאה בפענוח קובץ אקסל ${file.name}: ${err.message}`));
+        }
       };
       reader.readAsArrayBuffer(file);
 
     } else {
-      //regular text files (txt, csv, etc.)
+      // קובצי טקסט רגילים (txt, csv, md וכו')
       reader.onload = (e) => {
-        uploadedFileText = e.target.result;
+        resolve(`--- תוכן קובץ טקסט: ${file.name} ---\n${e.target.result.trim()}\n`);
       };
       reader.readAsText(file, "UTF-8");
     }
-  } catch (err) {
-    console.error("שגיאה בפענוח הקובץ:", err);
-    appendMessage("assistant", `שגיאה בפענוח הקובץ: ${err.message}`);
-  }
+  });
 }
 
+async function extractTextFromDocx(arrayBuffer) {
+  const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+  return result.value.trim();
+}
 async function extractTextFromPdf(arrayBuffer) {
   const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
   const pdfDoc = await loadingTask.promise;
@@ -244,6 +280,22 @@ async function extractTextFromPdf(arrayBuffer) {
   }
 
   return fullText.trim();
+}
+
+async function extractTextFromExcel(arrayBuffer) {
+  const data = new Uint8Array(arrayBuffer);
+  const workbook = XLSX.read(data, { type: "array" });
+  let excelText = "";
+
+  workbook.SheetNames.forEach(sheetName => {
+    const worksheet = workbook.Sheets[sheetName];
+    const csvContent = XLSX.utils.sheet_to_csv(worksheet);
+    if (csvContent.trim()) {
+      excelText += `[גיליון: ${sheetName}]\n${csvContent}\n\n`;
+    }
+  });
+
+  return excelText.trim();
 }
 // Clear the attached file
 function clearAttachedFile() {
@@ -399,6 +451,7 @@ async function formatDocumentSubstring(targetText, formatOptions) {
     await context.sync();
   });
 }
+
 //bearer token for updated API call
 async function callAzureAI(displayPrompt, apiPrompt) {
   appendMessage("user", displayPrompt);
