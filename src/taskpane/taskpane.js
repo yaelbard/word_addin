@@ -16,7 +16,6 @@ if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
-// בנייה בטוחה של כתובת ה-redirect
 const redirectPageUri = new URL("auth-redirect.html", window.location.href).href;
 
 const msalConfig = {
@@ -24,52 +23,96 @@ const msalConfig = {
     clientId: CONFIG.clientId,
     authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
     redirectUri: redirectPageUri,
-    navigateToLoginRequestUrl: false // מונע מ-MSAL לנסות לנווט בחזרה בתוך הפופאפ
+    navigateToLoginRequestUrl: false
   },
   cache: {
     cacheLocation: "localStorage",
-    storeAuthStateInCookie: true // עוזר לבעיות של דפדפנים בתוך אופיס
+    storeAuthStateInCookie: true
   }
 };
 
 const msalInstance = new msal.PublicClientApplication(msalConfig);
+let isMsalInitialized = false;
 
-// פונקציית האימות
+async function initMsal() {
+  if (!isMsalInitialized) {
+    await msalInstance.initialize();
+    isMsalInitialized = true;
+  }
+}
+
+/**
+ * פתיחת חלון אימות דרך Office Dialog API במקום window.open
+ */
+function openLoginDialog() {
+  return new Promise((resolve, reject) => {
+    const dialogUrl = new URL("auth-redirect.html", window.location.href);
+    dialogUrl.searchParams.set("clientId", CONFIG.clientId);
+    dialogUrl.searchParams.set("tenantId", CONFIG.tenantId);
+    Office.context.ui.displayDialogAsync(
+      redirectPageUri,
+      { height: 60, width: 35, displayInIframe: false },
+      (asyncResult) => {
+        if (asyncResult.status === Office.AsyncResultStatus.Failed) {
+          reject(new Error(`Failed to open dialog: ${asyncResult.error.message}`));
+          return;
+        }
+
+        const dialog = asyncResult.value;
+
+        // האזנה להודעות שנשלחות מחלון הדיאלוג
+        dialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
+          dialog.close();
+          try {
+            const response = JSON.parse(arg.message);
+            if (response.status === "success") {
+              resolve(response.token);
+            } else {
+              reject(new Error(response.error || "Authentication failed"));
+            }
+          } catch (e) {
+            reject(new Error("Malformed dialog response"));
+          }
+        });
+
+        // טיפול בסגירה ידנית של החלון על ידי המשתמש
+        dialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
+          if (arg.error === 12006) {
+            reject(new Error("Login window was closed by the user."));
+          }
+        });
+      }
+    );
+  });
+}
+
+/**
+ * פונקציית האימות הראשית
+ */
 async function getAccessToken() {
-  // חובה לאתחל את MSAL (רצוי לעשות זאת פעם אחת כשהתוסף עולה)
-  await msalInstance.initialize();
+  await initMsal();
 
   const loginRequest = {
-    scopes: ["https://cognitiveservices.azure.com/.default"] 
+    scopes: ["https://cognitiveservices.azure.com/.default"]
   };
 
   try {
     const accounts = msalInstance.getAllAccounts();
-    
-    // אם המשתמש לא מחובר, נפתח חלון
-    if (accounts.length === 0) {
-      const loginResponse = await msalInstance.loginPopup(loginRequest);
-      return loginResponse.accessToken;
-    }
-    
-    // ניסיון לקבל טוקן שקט
-    const silentResponse = await msalInstance.acquireTokenSilent({
-      ...loginRequest,
-      account: accounts[0]
-    });
-    return silentResponse.accessToken;
 
-  } catch (error) {
-    console.warn("Silent token acquisition failed. Acquiring token using popup...", error);
-    try {
-        // במידה והטוקן פג תוקף, נפתח פופאפ שוב
-        const popupResponse = await msalInstance.acquireTokenPopup(loginRequest);
-        return popupResponse.accessToken;
-    } catch (popupError) {
-        console.error("Popup authentication failed:", popupError);
-        throw popupError;
+    // אם קיים חשבון שמור, מנסים להוציא טוקן באופן שקט ללא שום חלון
+    if (accounts.length > 0) {
+      const silentResponse = await msalInstance.acquireTokenSilent({
+        ...loginRequest,
+        account: accounts[0]
+      });
+      return silentResponse.accessToken;
     }
+  } catch (silentError) {
+    console.warn("Silent token acquisition failed. Opening dialog...", silentError);
   }
+
+  // אם אין חשבון או שהטוקן השקט נכשל – פותחים דיאלוג ייעודי של אופיס
+  return await openLoginDialog();
 }
 //system prompt for the AI assistant, defining its behavior and response format
 const SYSTEM_PROMPT = `AI Word assistant. Analyze full doc context directly without relying on mouse selection. Use natural Hebrew.

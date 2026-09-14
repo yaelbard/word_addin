@@ -1,12 +1,103 @@
 <!DOCTYPE html>
-<html>
+<html lang="he" dir="rtl">
 <head>
-    <meta charset="UTF-8" />
-    <title>Authenticating...</title>
+  <meta charset="UTF-8" />
+  <title>התחברות ל-Entra ID</title>
+  
+  <!-- קישור לקובץ העיצוב החיצוני שלך -->
+  <link rel="stylesheet" href="taskpane.css" />
+
+  <!-- ספריות אופיס ו-MSAL -->
+  <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <script type="text/javascript" src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
 </head>
 <body>
-    <div style="text-align: center; margin-top: 50px; font-family: sans-serif;">
-        <p>מתחבר למיקרוסופט, אנא המתן...</p>
-    </div>
+
+  <div id="auth-status-container">
+    <div id="auth-loader"></div>
+    <p id="auth-status-text">מתחבר ל-Entra ID...</p>
+  </div>
+
+  <script>
+    Office.onReady(async () => {
+      try {
+        // שליפת המזהים שהועברו ב-Query Parameters מ-taskpane.js
+        const urlParams = new URLSearchParams(window.location.search);
+        const clientId = urlParams.get("clientId");
+        const tenantId = urlParams.get("tenantId");
+
+        if (!clientId || !tenantId) {
+          throw new Error("Missing clientId or tenantId in URL parameters");
+        }
+
+        // נתיב ה-Redirect הרשום ב-Azure (חייב להיות נקי מפרמטרים)
+        const cleanRedirectUri = window.location.origin + window.location.pathname;
+
+        const msalConfig = {
+          auth: {
+            clientId: clientId,
+            authority: `https://login.microsoftonline.com/${tenantId}`,
+            redirectUri: cleanRedirectUri
+          },
+          cache: {
+            cacheLocation: "localStorage",
+            storeAuthStateInCookie: true
+          }
+        };
+
+        const msalInstance = new msal.PublicClientApplication(msalConfig);
+        await msalInstance.initialize();
+
+        const authParameters = {
+          scopes: ["https://cognitiveservices.azure.com/.default"]
+        };
+
+        // שלב 1: האזנה לחזרה מתהליך ההתחברות (Redirect)
+        const response = await msalInstance.handleRedirectPromise();
+
+        if (response) {
+          const statusElem = document.getElementById("auth-status-text");
+          if (statusElem) statusElem.innerText = "ההתחברות הצליחה, מעביר נתונים...";
+          
+          Office.context.ui.messageParent(JSON.stringify({
+            status: "success",
+            token: response.accessToken
+          }));
+          return;
+        }
+
+        // שלב 2: ניסיון קבלת טוקן שקט אם החשבון כבר קיים במטמון
+        const accounts = msalInstance.getAllAccounts();
+        if (accounts.length > 0) {
+          try {
+            const silentResponse = await msalInstance.acquireTokenSilent({
+              ...authParameters,
+              account: accounts[0]
+            });
+            Office.context.ui.messageParent(JSON.stringify({
+              status: "success",
+              token: silentResponse.accessToken
+            }));
+            return;
+          } catch (silentError) {
+            console.warn("Silent token acquisition failed, redirecting...", silentError);
+          }
+        }
+
+        // שלב 3: הפניה למסך הכניסה של Entra ID בתוך חלון הדיאלוג
+        await msalInstance.loginRedirect(authParameters);
+
+      } catch (error) {
+        console.error("Auth redirect error:", error);
+        const statusElem = document.getElementById("auth-status-text");
+        if (statusElem) statusElem.innerText = "אירעה שגיאה בתהליך ההתחברות.";
+        
+        Office.context.ui.messageParent(JSON.stringify({
+          status: "error",
+          error: error.message || "Authentication failed"
+        }));
+      }
+    });
+  </script>
 </body>
 </html>
