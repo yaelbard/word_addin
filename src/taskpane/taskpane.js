@@ -149,7 +149,7 @@ let conversationHistory = [
 ];
 
 // Variables to store the uploaded document data
-let uploadedFile = [];
+let uploadedFiles = [];
 let uploadedFileText = "";
 
 Office.onReady((info) => {
@@ -299,7 +299,7 @@ async function extractTextFromExcel(arrayBuffer) {
 }
 // Clear the attached file
 function clearAttachedFile() {
-  uploadedFile = null;
+  uploadedFiles = [];
   uploadedFileText = "";
   const fileInput = document.getElementById("doc-upload");
   const card = document.getElementById("file-attached-card");
@@ -498,11 +498,7 @@ async function callAzureAI(displayPrompt, apiPrompt) {
     let replyString = data.choices[0].message.content;
     
     conversationHistory.push({ role: "assistant", content: replyString });
-
-    if (replyString.startsWith("```json")) {
-        replyString = replyString.replace(/^```json\n/, "").replace(/\n```$/, "");
-    }
-
+    replyString = replyString.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
     const aiResponse = JSON.parse(replyString);
 
     appendMessage("assistant", aiResponse.chat_message, aiResponse.action);
@@ -531,81 +527,43 @@ async function callAzureAI(displayPrompt, apiPrompt) {
   }
   
 }
-
 async function handleSend() {
   const input = document.getElementById("prompt-input");
   const sendBtn = document.getElementById("send-btn");
   const loader = document.getElementById("loadingIndicator");
 
   const userText = input.value.trim();
-  // Ensure we don't send empty requests unless a file is attached
   if (!userText && !uploadedFileText) return;
-
   input.value = "";
-
-  // Show loading spinner and disable send button
   if (loader) loader.style.display = "block";
   if (sendBtn) sendBtn.disabled = true;
 
   try {
+    let docBodyText = ""; 
     await Word.run(async (context) => {
-      // Ingest the entire Word document body
       const body = context.document.body;
       body.load("text");
       await context.sync();
-
-      let fullPrompt = userText;
-
-      // Append open Word document text
-      if (body.text && body.text.trim().length > 0) {
-        fullPrompt = `${fullPrompt}\n\n[Open Word Document Content]:\n"${body.text.trim()}"`;
-      }
-
-      // Append uploaded external file content
-      if (uploadedFileText) {
-        fullPrompt = `${fullPrompt}\n\n[Uploaded File Content (${uploadedFile.name})]:\n"${uploadedFileText.trim()}"`;
-      }
-
-      // Call the AI model
-      await callAzureAI(userText, fullPrompt);
-
-      // Reset attached file after successful send
-      clearAttachedFile();
+      docBodyText = body.text ? body.text.trim() : "";
     });
+    let fullPrompt = userText;
+    if (docBodyText.length > 0) {
+      fullPrompt = `${fullPrompt}\n\n[Open Word Document Content]:\n"${docBodyText}"`;
+    }
+
+    if (uploadedFileText) {
+      const fileNames = uploadedFiles.map(f => f.name).join(", ") || "Files";
+      fullPrompt = `${fullPrompt}\n\n[Uploaded Files Content (${fileNames})]:\n"${uploadedFileText.trim()}"`;
+    }
+    await callAzureAI(userText, fullPrompt);
+    clearAttachedFile();
+
   } catch (error) {
     console.error("Error during processing:", error);
+    input.value = userText;
   } finally {
-    // Hide loading spinner and re-enable send button
     if (loader) loader.style.display = "none";
     if (sendBtn) sendBtn.disabled = false;
-  }
-}
-
-async function sendPrompt() {
-  const promptInput = document.getElementById("prompt-input");
-  const sendBtn = document.getElementById("send-btn");
-  const loader = document.getElementById("loadingIndicator");
-  const responseBox = document.getElementById("chatResponse");
-
-  const query = promptInput.value.trim();
-  if (!query) return;
-
-  // 1. הפעלת מצב טעינה והשבתת קלט
-  loader.style.display = "block";
-  sendBtn.disabled = true;
-  responseBox.innerText = "";
-
-  try {
-    // קריאה לפונקציית ה-API שלך
-    const reply = await callGptApi(query);
-    responseBox.innerText = reply;
-  } catch (err) {
-    console.error(err);
-    responseBox.innerText = "חלה שגיאה בקבלת המענה מהמודל.";
-  } finally {
-    // 2. כיבוי מצב הטעינה
-    loader.style.display = "none";
-    sendBtn.disabled = false;
   }
 }
 
