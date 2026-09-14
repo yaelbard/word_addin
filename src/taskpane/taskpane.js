@@ -175,35 +175,38 @@ Office.onReady((info) => {
       fileInput.addEventListener("change", handleFileUpload);
     }
     if (removeFileBtn) {
-      removeFileBtn.addEventListener("click", clearAttachedFile);
+      removeFileBtn.addEventListener("click", clearAttachedFiles);
     }
   }
 });
 
 async function handleFileUpload(event) {
-  const files = Array.from(event.target.files);
-  if (!files || files.length === 0) return;
-  uploadedFiles = files;
-  const card = document.getElementById("file-attached-card");
-  const nameEl = document.getElementById("attached-file-name");
-  const sizeEl = document.getElementById("attached-file-size");
+  const newFiles = Array.from(event.target.files);
+  if (!newFiles || newFiles.length === 0) return;
 
-  if (card && nameEl && sizeEl) {
-    if (files.length === 1) {
-      nameEl.innerText = files[0].name;
-      sizeEl.innerText = formatFileSize(files[0].size);
-    } else {
-      const totalSize = files.reduce((acc, f) => acc + f.size, 0);
-      nameEl.innerText = `${files.length} קבצים צורפו`;
-      sizeEl.innerText = formatFileSize(totalSize);
-    }
-    card.style.display = "flex";
+  const uniqueFiles = newFiles.filter(
+    (newF) => !uploadedFiles.some((item) => item.file.name === newF.name && item.file.size === newF.size)
+  );
+
+  if (uniqueFiles.length === 0) {
+    event.target.value = "";
+    return;
   }
-  try {
-    const parsedTexts = await Promise.all(files.map(file => parseSingleFile(file)));
-    uploadedFileText = parsedTexts.join("\n");
 
-    console.log(`חולצו בהצלחה ${files.length} קבצים. אורך טקסט כולל:`, uploadedFileText.length);
+  try {
+    const parsedItems = await Promise.all(
+      uniqueFiles.map(async (file) => {
+        const text = await parseSingleFile(file);
+        return {
+          id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          file: file,
+          text: text
+        };
+      })
+    );
+
+    uploadedFiles = uploadedFiles.concat(parsedItems);
+    renderAttachedFilesUI();
 
   } catch (err) {
     console.error("שגיאה בפענוח הקבצים:", err);
@@ -211,6 +214,61 @@ async function handleFileUpload(event) {
   } finally {
     event.target.value = "";
   }
+}
+
+function removeSingleFile(fileId) {
+  uploadedFiles = uploadedFiles.filter((item) => item.id !== fileId);
+  renderAttachedFilesUI();
+}
+
+function clearAttachedFiles() {
+  uploadedFiles = [];
+  renderAttachedFilesUI();
+  const fileInput = document.getElementById("doc-upload");
+  if (fileInput) fileInput.value = "";
+}
+
+function renderAttachedFilesUI() {
+  const container = document.getElementById("attached-files-container");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  uploadedFiles.forEach((item) => {
+    const card = document.createElement("div");
+    card.className = "attached-file-chip";
+
+    const infoDiv = document.createElement("div");
+    infoDiv.className = "file-chip-info";
+
+    const icon = document.createElement("span");
+    icon.className = "file-icon";
+    icon.textContent = "📄";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "file-chip-name";
+    nameSpan.textContent = item.file.name;
+    nameSpan.title = item.file.name;
+
+    const sizeSpan = document.createElement("span");
+    sizeSpan.className = "file-chip-size";
+    sizeSpan.textContent = `(${formatFileSize(item.file.size)})`;
+
+    infoDiv.appendChild(icon);
+    infoDiv.appendChild(nameSpan);
+    infoDiv.appendChild(sizeSpan);
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "remove-chip-btn";
+    deleteBtn.title = "הסר קובץ";
+    deleteBtn.textContent = "✕";
+    deleteBtn.onclick = () => removeSingleFile(item.id);
+
+    card.appendChild(infoDiv);
+    card.appendChild(deleteBtn);
+    container.appendChild(card);
+  });
 }
 
 function parseSingleFile(file) {
@@ -296,16 +354,6 @@ async function extractTextFromExcel(arrayBuffer) {
   });
 
   return excelText.trim();
-}
-// Clear the attached file
-function clearAttachedFile() {
-  uploadedFiles = [];
-  uploadedFileText = "";
-  const fileInput = document.getElementById("doc-upload");
-  const card = document.getElementById("file-attached-card");
-
-  if (fileInput) fileInput.value = "";
-  if (card) card.style.display = "none";
 }
 
 // Format file size helper
@@ -533,7 +581,7 @@ async function handleSend() {
   const loader = document.getElementById("loadingIndicator");
 
   const userText = input.value.trim();
-  if (!userText && !uploadedFileText) return;
+  if (!userText && uploadedFiles.length === 0) return;
   input.value = "";
   if (loader) loader.style.display = "block";
   if (sendBtn) sendBtn.disabled = true;
@@ -551,12 +599,13 @@ async function handleSend() {
       fullPrompt = `${fullPrompt}\n\n[Open Word Document Content]:\n"${docBodyText}"`;
     }
 
-    if (uploadedFileText) {
-      const fileNames = uploadedFiles.map(f => f.name).join(", ") || "Files";
-      fullPrompt = `${fullPrompt}\n\n[Uploaded Files Content (${fileNames})]:\n"${uploadedFileText.trim()}"`;
+    if (uploadedFiles.length > 0) {
+    const fileNames = uploadedFiles.map((item) => item.file.name).join(", ");
+    const filesCombinedText = uploadedFiles.map((item) => item.text).join("\n\n");
+    fullPrompt = `${fullPrompt}\n\n[Uploaded Files Content (${fileNames})]:\n"${filesCombinedText.trim()}"`;
     }
     await callAzureAI(userText, fullPrompt);
-    clearAttachedFile();
+    clearAttachedFiles();
 
   } catch (error) {
     console.error("Error during processing:", error);

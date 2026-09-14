@@ -124,11 +124,73 @@ body {
   background-color: #f3f2f1;
 }
 
-#file-name-display {
+/* Attached files list container */
+#attached-files-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  width: 100%;
+  max-height: 120px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Single attached file chip */
+.attached-file-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #f0f6ff;
+  border: 1px solid #c7dcff;
+  border-radius: 5px;
+  padding: 5px 8px;
+  box-sizing: border-box;
+}
+
+.file-chip-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.file-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.file-chip-name {
   font-size: 12px;
+  font-weight: 600;
+  color: #1e3e6b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+
+.file-chip-size {
+  font-size: 11px;
   color: #605e5c;
-  margin: 0;
-  padding-right: 2px;
+  white-space: nowrap;
+}
+
+.remove-chip-btn {
+  background: none;
+  border: none;
+  color: #605e5c;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.remove-chip-btn:hover {
+  background-color: #dbe7fb;
+  color: #a80000;
 }
 
 /* Loading spinner indicator */
@@ -163,67 +225,6 @@ body {
   white-space: pre-wrap;
   line-height: 1.5;
   direction: rtl;
-}
-/* Attached file preview badge */
-#file-attached-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background-color: #f0f6ff;
-  border: 1px solid #c7dcff;
-  border-radius: 6px;
-  padding: 6px 10px;
-  margin-top: 6px;
-  box-sizing: border-box;
-}
-
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-}
-
-.file-icon {
-  font-size: 16px;
-}
-
-.file-text {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.file-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: #1e3e6b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
-}
-
-.file-size {
-  font-size: 10px;
-  color: #605e5c;
-}
-
-.remove-btn {
-  background: none;
-  border: none;
-  color: #605e5c;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: bold;
-  padding: 2px 6px;
-  border-radius: 50%;
-  line-height: 1;
-}
-
-.remove-btn:hover {
-  background-color: #dbe7fb;
-  color: #a80000;
 }
 
 b {
