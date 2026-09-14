@@ -141,6 +141,7 @@ Rules:
 3. Chat/Q&A: action="none". Full rewrite: action="replace_all". Append: action="insert_end".
 4. RTL & right-aligned Hebrew phrasing.
 5. Line breaks: Never use multiple empty lines; at most a single newline.
+6. Copy target_text verbatim from the doc (3–8 words, exact match). Never fix typos or rephrase.
 `;
 
 
@@ -310,8 +311,12 @@ function parseSingleFile(file) {
         }
       };
       reader.readAsArrayBuffer(file);
-
-    } else {
+    } 
+    else if (fileExtension === "doc") {
+  reject(new Error(`הקובץ "${file.name}" הוא בפורמט .doc ישן. יש לשמור אותו כ-docx ולהעלות שוב.`));
+  return;
+    }
+    else {
       // קובצי טקסט רגילים (txt, csv, md וכו')
       reader.onload = (e) => {
         resolve(`--- תוכן קובץ טקסט: ${file.name} ---\n${e.target.result.trim()}\n`);
@@ -386,18 +391,29 @@ async function applyContentToRange(context, targetRange, content, insertLocation
 
   await context.sync();
 }
+function normalizeText(str) {
+  if (!str) return "";
+  return str
+    .replace(/[\u200B-\u200D\uFEFF\u200E\u200F]/g, "") // הסרת תווי כיווניות נסתרים
+    .replace(/[\u201C\u201D\u05F4"]/g, '"')             // איחוד כל סוגי הגרשיים
+    .replace(/[\u2018\u2019\u05F3']/g, "'")             // איחוד גרש בודד
+    .replace(/[\r\n\t]+/g, " ")                          // הפיכת ירידות שורה לרווח
+    .replace(/\s+/g, " ")                               // איחוד רווחים כפולים
+    .trim();
+}
 async function replaceDocumentSubstring(targetText, replacementContent) {
   return Word.run(async (context) => {
     const body = context.document.body;
     const cleanTarget = (targetText || "").trim();
 
-    if (!cleanTarget) {
-      throw new Error("Target text is empty.");
-    }
+    if (!cleanTarget) throw new Error("Target text is empty.");
 
-    // Direct search for segments under the 255-char limit
+    // שלב 1: חיפוש רגיל של Word (מהיר)
     if (cleanTarget.length <= 250) {
-      const searchResults = body.search(cleanTarget, { matchCase: false });
+      const searchResults = body.search(cleanTarget, { 
+        matchCase: false, 
+        matchWholeWord: false 
+      });
       searchResults.load("items");
       await context.sync();
 
@@ -407,31 +423,41 @@ async function replaceDocumentSubstring(targetText, replacementContent) {
       }
     }
 
-    // Paragraph scan fallback for longer segments
+    // שלב 2: סריקה לפי פסקאות מנורמלות (מתגבר על הבדלי מקלדת/גרשיים/רווחים)
     const paragraphs = body.paragraphs;
-    paragraphs.load("text");
+    paragraphs.load(["text", "items"]);
     await context.sync();
 
-    let matchedPara = null;
-    for (let i = 0; i < paragraphs.items.length; i++) {
-      const pText = paragraphs.items[i].text.trim();
-      if (!pText) continue;
+    const normalizedTarget = normalizeText(cleanTarget);
 
-      if (pText.includes(cleanTarget) || cleanTarget.includes(pText)) {
-        matchedPara = paragraphs.items[i];
-        break;
+    for (let i = 0; i < paragraphs.items.length; i++) {
+      const p = paragraphs.items[i];
+      const normalizedPText = normalizeText(p.text);
+
+      if (!normalizedPText) continue;
+
+      if (normalizedPText.includes(normalizedTarget) || normalizedTarget.includes(normalizedPText)) {
+        await applyContentToRange(context, p, replacementContent, Word.InsertLocation.replace);
+        return;
       }
     }
 
-    if (matchedPara) {
-      await applyContentToRange(context, matchedPara, replacementContent, Word.InsertLocation.replace);
-      return;
+    // שלב 3: חיפוש תת-מחרוזת ראשונית (אם הסוף נחתך או שונה מעט)
+    if (cleanTarget.length > 25) {
+      const shortTarget = cleanTarget.substring(0, 25).trim();
+      const fallbackSearch = body.search(shortTarget, { matchCase: false });
+      fallbackSearch.load("items");
+      await context.sync();
+
+      if (fallbackSearch.items.length > 0) {
+        await applyContentToRange(context, fallbackSearch.items[0], replacementContent, Word.InsertLocation.replace);
+        return;
+      }
     }
 
-    throw new Error("Target text not found in the document.");
+    throw new Error(`Target text not found: "${cleanTarget.substring(0, 35)}..."`);
   });
 }
-
 async function replaceEntireDocument(newContent) {
   return Word.run(async (context) => {
     const body = context.document.body;
@@ -466,40 +492,45 @@ async function formatDocumentSubstring(targetText, formatOptions) {
     const body = context.document.body;
     const cleanTarget = (targetText || "").trim();
 
-    if (!cleanTarget) {
-      throw new Error("Target text is empty.");
-    }
+    if (!cleanTarget) throw new Error("Target text is empty.");
 
+    let targetRange = null;
+
+    // 1. חיפוש ישיר
     const searchResults = body.search(cleanTarget, { matchCase: false });
     searchResults.load("items");
     await context.sync();
 
-    if (searchResults.items.length === 0) {
-      throw new Error("Target text not found for formatting.");
+    if (searchResults.items.length > 0) {
+      targetRange = searchResults.items[0];
+    } else {
+      // 2. חיפוש חלקי אם המדויק נכשל
+      if (cleanTarget.length > 25) {
+        const shortTarget = cleanTarget.substring(0, 25).trim();
+        const fallbackSearch = body.search(shortTarget, { matchCase: false });
+        fallbackSearch.load("items");
+        await context.sync();
+
+        if (fallbackSearch.items.length > 0) {
+          targetRange = fallbackSearch.items[0];
+        }
+      }
     }
 
-    // Apply styles strictly to the matched target range
-    const targetRange = searchResults.items[0];
+    if (!targetRange) {
+      throw new Error(`Target text not found for formatting: "${cleanTarget.substring(0, 35)}..."`);
+    }
 
     if (formatOptions) {
-      if (typeof formatOptions.bold === "boolean") {
-        targetRange.font.bold = formatOptions.bold;
-      }
-      if (typeof formatOptions.underline === "boolean") {
-        targetRange.font.underline = formatOptions.underline ? "Single" : "None";
-      }
-      if (typeof formatOptions.italic === "boolean") {
-        targetRange.font.italic = formatOptions.italic;
-      }
-      if (formatOptions.font_name) {
-        targetRange.font.name = formatOptions.font_name;
-      }
+      if (typeof formatOptions.bold === "boolean") targetRange.font.bold = formatOptions.bold;
+      if (typeof formatOptions.underline === "boolean") targetRange.font.underline = formatOptions.underline ? "Single" : "None";
+      if (typeof formatOptions.italic === "boolean") targetRange.font.italic = formatOptions.italic;
+      if (formatOptions.font_name) targetRange.font.name = formatOptions.font_name;
     }
 
     await context.sync();
   });
 }
-
 //bearer token for updated API call
 async function callAzureAI(displayPrompt, apiPrompt) {
   appendMessage("user", displayPrompt);
