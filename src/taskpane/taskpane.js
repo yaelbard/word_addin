@@ -1,40 +1,3 @@
-const CONFIG = {
-  deployment: "gpt-5.6-sol",
-  endpoint: "https://gpt-agents-1972-foundry.openai.azure.com",
-  apiVersion: "2025-01-01-preview",
-  clientId: "2603315b-9e9f-4b43-b2fd-3de9ff9c41bd", 
-  tenantId: "73ea3442-65e1-4556-a609-904f5d2e45ab"
-};
-
-if (window.pdfjsLib) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-}
-
-const redirectPageUri = new URL("auth-redirect.html", window.location.href).href;
-
-const msalConfig = {
-  auth: {
-    clientId: CONFIG.clientId,
-    authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
-    redirectUri: redirectPageUri,
-    navigateToLoginRequestUrl: false
-  },
-  cache: {
-    cacheLocation: "localStorage",
-    storeAuthStateInCookie: true
-  }
-};
-
-const msalInstance = new msal.PublicClientApplication(msalConfig);
-let isMsalInitialized = false;
-
-let conversationHistory = [
-  { role: "system", content: SYSTEM_PROMPT }
-];
-
-// Variables to store the uploaded document data
-let uploadedFiles = [];
-let uploadedFileText = "";
 
 Office.onReady((info) => {
   if (info.host === Office.HostType.Word) {
@@ -56,37 +19,13 @@ Office.onReady((info) => {
 
     // Handle file upload and removal
     if (fileInput) {
-      fileInput.addEventListener("change", handleFileUpload);
+      fileInput.addEventListener("change", window.handleFileUpload);
     }
     if (removeFileBtn) {
       removeFileBtn.addEventListener("click", clearAttachedFiles);
     }
   }
 });
-
-async function applyContentToRange(context, targetRange, content, insertLocation) {
-  let insertedRange;
-  // Detect if content contains HTML tags
-  const hasHtml = /<[a-z][\s\S]*>/i.test(content);
-
-  if (hasHtml) {
-    // Wrap with dir="rtl" to ensure proper bidirectional rendering
-    const wrappedHtml = `<div dir="rtl" style="text-align: right;">${content}</div>`;
-    insertedRange = targetRange.insertHtml(wrappedHtml, insertLocation);
-  } else {
-    insertedRange = targetRange.insertText(content, insertLocation);
-  }
-
-  insertedRange.paragraphs.load("items");
-  await context.sync();
-
-  insertedRange.paragraphs.items.forEach((p) => {
-    p.alignment = Word.Alignment.right;
-    try { p.isRightToLeft = true; } catch (e) {}
-  });
-
-  await context.sync();
-}
 async function handleSend() {
   const input = document.getElementById("prompt-input");
   const sendBtn = document.getElementById("send-btn");

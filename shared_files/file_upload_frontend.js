@@ -1,10 +1,14 @@
+// Variables to store the uploaded document data on window
+console.log("🔥 UPLOAD FILE SCRIPT LOADED SUCCESSFULLY!");
+window.uploadedFiles = [];  
+window.uploadedFileText = "";
 
-async function handleFileUpload(event) {
+window.handleFileUpload = async function(event) {
   const newFiles = Array.from(event.target.files);
   if (!newFiles || newFiles.length === 0) return;
 
   const uniqueFiles = newFiles.filter(
-    (newF) => !uploadedFiles.some((item) => item.file.name === newF.name && item.file.size === newF.size)
+    (newF) => !window.uploadedFiles.some((item) => item.file.name === newF.name && item.file.size === newF.size)
   );
 
   if (uniqueFiles.length === 0) {
@@ -15,7 +19,8 @@ async function handleFileUpload(event) {
   try {
     const parsedItems = await Promise.all(
       uniqueFiles.map(async (file) => {
-        const text = await parseSingleFile(file);
+        // קריאה לפונקציית הפענוח דרך window למקרה שהוגדרה בקובץ אחר
+        const text = await (window.parseSingleFile ? window.parseSingleFile(file) : Promise.resolve(""));
         return {
           id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
           file: file,
@@ -24,36 +29,38 @@ async function handleFileUpload(event) {
       })
     );
 
-    uploadedFiles = uploadedFiles.concat(parsedItems);
-    renderAttachedFilesUI();
+    window.uploadedFiles = window.uploadedFiles.concat(parsedItems);
+    window.renderAttachedFilesUI();
 
   } catch (err) {
     console.error("שגיאה בפענוח הקבצים:", err);
-    appendMessage("assistant", `שגיאה בפענוח הקבצים: ${err.message}`);
+    if (typeof window.appendMessage === "function") {
+      window.appendMessage("assistant", `שגיאה בפענוח הקבצים: ${err.message}`);
+    }
   } finally {
     event.target.value = "";
   }
-}
+};
 
-function removeSingleFile(fileId) {
-  uploadedFiles = uploadedFiles.filter((item) => item.id !== fileId);
-  renderAttachedFilesUI();
-}
+window.removeSingleFile = function(fileId) {
+  window.uploadedFiles = window.uploadedFiles.filter((item) => item.id !== fileId);
+  window.renderAttachedFilesUI();
+};
 
-function clearAttachedFiles() {
-  uploadedFiles = [];
-  renderAttachedFilesUI();
+window.clearAttachedFiles = function() {
+  window.uploadedFiles = [];
+  window.renderAttachedFilesUI();
   const fileInput = document.getElementById("doc-upload");
   if (fileInput) fileInput.value = "";
-}
+};
 
-function renderAttachedFilesUI() {
+window.renderAttachedFilesUI = function() {
   const container = document.getElementById("attached-files-container");
   if (!container) return;
 
   container.innerHTML = "";
 
-  uploadedFiles.forEach((item) => {
+  window.uploadedFiles.forEach((item) => {
     const card = document.createElement("div");
     card.className = "attached-file-chip";
 
@@ -71,7 +78,11 @@ function renderAttachedFilesUI() {
 
     const sizeSpan = document.createElement("span");
     sizeSpan.className = "file-chip-size";
-    sizeSpan.textContent = `(${formatFileSize(item.file.size)})`;
+    // שימוש בפונקציית העיצוב דרך window עם ברירת מחדל בטוחה
+    const formattedSize = typeof window.formatFileSize === "function" 
+      ? window.formatFileSize(item.file.size) 
+      : `${item.file.size} B`;
+    sizeSpan.textContent = `(${formattedSize})`;
 
     infoDiv.appendChild(icon);
     infoDiv.appendChild(nameSpan);
@@ -82,10 +93,10 @@ function renderAttachedFilesUI() {
     deleteBtn.className = "remove-chip-btn";
     deleteBtn.title = "הסר קובץ";
     deleteBtn.textContent = "✕";
-    deleteBtn.onclick = () => removeSingleFile(item.id);
+    deleteBtn.onclick = () => window.removeSingleFile(item.id);
 
     card.appendChild(infoDiv);
     card.appendChild(deleteBtn);
     container.appendChild(card);
   });
-}
+};

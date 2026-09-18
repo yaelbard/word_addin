@@ -123,3 +123,27 @@ async function formatDocumentSubstring(targetText, formatOptions) {
     await context.sync();
   });
 }
+
+async function applyContentToRange(context, targetRange, content, insertLocation) {
+  let insertedRange;
+  // Detect if content contains HTML tags
+  const hasHtml = /<[a-z][\s\S]*>/i.test(content);
+
+  if (hasHtml) {
+    // Wrap with dir="rtl" to ensure proper bidirectional rendering
+    const wrappedHtml = `<div dir="rtl" style="text-align: right;">${content}</div>`;
+    insertedRange = targetRange.insertHtml(wrappedHtml, insertLocation);
+  } else {
+    insertedRange = targetRange.insertText(content, insertLocation);
+  }
+
+  insertedRange.paragraphs.load("items");
+  await context.sync();
+
+  insertedRange.paragraphs.items.forEach((p) => {
+    p.alignment = Word.Alignment.right;
+    try { p.isRightToLeft = true; } catch (e) {}
+  });
+
+  await context.sync();
+}

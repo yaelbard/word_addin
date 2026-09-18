@@ -1,3 +1,7 @@
+let conversationHistory = [
+  { role: "system", content: SYSTEM_PROMPT }
+];
+
 //bearer token for updated API call
 async function callAzureAI(displayPrompt, apiPrompt) {
   appendMessage("user", displayPrompt);

@@ -1,3 +1,5 @@
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+let isMsalInitialized = false;
 
 async function initMsal() {
   if (!isMsalInitialized) {
