@@ -2,12 +2,10 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <title>התחברות ל-Entra ID</title>
-  
-  <!-- קישור לקובץ העיצוב החיצוני שלך -->
+  <title>Entra ID Authentication</title>
   <link rel="stylesheet" href="taskpane.css" />
 
-  <!-- ספריות אופיס ו-MSAL -->
+  <!-- Office.js and MSAL Browser -->
   <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script type="text/javascript" src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
 </head>
@@ -18,88 +16,80 @@
     <p id="auth-status-text">מתחבר ל-Entra ID...</p>
   </div>
 
-<script>
-  Office.onReady(async () => {
-    try {
-      // שליפה ישירה מה-localStorage המשותף לדומיין
-      let clientId = localStorage.getItem("entra_clientId");
-      let tenantId = localStorage.getItem("entra_tenantId");
-
-      // בדיקת גיבוי מפרמטרי ה-URL אם לא נמצא ב-localStorage
-      if (!clientId || !tenantId) {
-        const urlParams = new URLSearchParams(window.location.search);
-        clientId = clientId || urlParams.get("clientId");
-        tenantId = tenantId || urlParams.get("tenantId");
-      }
-
-      // אם עדיין חסר, זורקים שגיאה ברורה
-      if (!clientId || !tenantId) {
-        throw new Error(`Missing Credentials! clientId: ${clientId}, tenantId: ${tenantId}`);
-      }
-
-      const cleanRedirectUri = window.location.origin + window.location.pathname;
-
-      const msalConfig = {
-        auth: {
-          clientId: clientId,
-          authority: `https://login.microsoftonline.com/${tenantId}`,
-          redirectUri: cleanRedirectUri
-        },
-        cache: {
-          cacheLocation: "localStorage",
-          storeAuthStateInCookie: true
-        }
-      };
-
-      const msalInstance = new msal.PublicClientApplication(msalConfig);
-      await msalInstance.initialize();
-
-      const authParameters = {
-        scopes: ["https://cognitiveservices.azure.com/.default"]
-      };
-
-      const response = await msalInstance.handleRedirectPromise();
-      if (response) {
-        const statusElem = document.getElementById("auth-status-text");
-        if (statusElem) statusElem.innerText = "ההתחברות הצליחה, מעביר נתונים...";
+  <script>
+    // Send message back to taskpane safely
+    function notifyParent(status, payload) {
+      if (Office && Office.context && Office.context.ui && typeof Office.context.ui.messageParent === "function") {
         Office.context.ui.messageParent(JSON.stringify({
-          status: "success",
-          token: response.accessToken
+          status: status,
+          ...(status === "success" ? { token: payload } : { error: payload })
         }));
-        return;
       }
-
-      const accounts = msalInstance.getAllAccounts();
-      if (accounts.length > 0) {
-        try {
-          const silentResponse = await msalInstance.acquireTokenSilent({
-            ...authParameters,
-            account: accounts[0]
-          });
-          Office.context.ui.messageParent(JSON.stringify({
-            status: "success",
-            token: silentResponse.accessToken
-          }));
-          return;
-        } catch (silentError) {
-          console.warn("Silent token acquisition failed, redirecting...", silentError);
-        }
-      }
-
-      await msalInstance.loginRedirect(authParameters);
-
-    } catch (error) {
-      console.error("Auth redirect error:", error);
-      const statusElem = document.getElementById("auth-status-text");
-      if (statusElem) {
-        statusElem.innerText = "שגיאה: " + error.message;
-      }
-      Office.context.ui.messageParent(JSON.stringify({
-        status: "error",
-        error: error.message || "Authentication failed"
-      }));
     }
-  });
-</script>
+
+    Office.onReady(async () => {
+      try {
+        // Extract credentials from URL params or localStorage fallback
+        const urlParams = new URLSearchParams(window.location.search);
+        const clientId = (window.CONFIG && window.CONFIG.clientId) ||
+                         urlParams.get("clientId") ||
+                         localStorage.getItem("entra_clientId");
+
+        const tenantId = (window.CONFIG && window.CONFIG.tenantId) ||
+                         urlParams.get("tenantId") ||
+                         localStorage.getItem("entra_tenantId");
+
+        if (!clientId || !tenantId) {
+          throw new Error("Missing clientId or tenantId configuration.");
+        }
+
+        // שמירה לשימוש חוזר בעת חזרה ממיקרוסופט
+        localStorage.setItem("entra_clientId", clientId);
+        localStorage.setItem("entra_tenantId", tenantId);
+        // Clean redirect URI without search queries
+        const cleanRedirectUri = window.location.origin + window.location.pathname;
+
+        const msalConfig = {
+          auth: {
+            clientId: clientId,
+            authority: `https://login.microsoftonline.com/${tenantId}`,
+            redirectUri: cleanRedirectUri
+          },
+          cache: {
+            cacheLocation: "localStorage",
+            storeAuthStateInCookie: true
+          }
+        };
+
+        const msalInstance = new msal.PublicClientApplication(msalConfig);
+        await msalInstance.initialize();
+
+        const authParameters = {
+          scopes: ["https://cognitiveservices.azure.com/.default"]
+        };
+
+        // Handle redirect return flow from Microsoft login page
+        const response = await msalInstance.handleRedirectPromise();
+
+        if (response && response.accessToken) {
+          const statusElem = document.getElementById("auth-status-text");
+          if (statusElem) statusElem.innerText = "ההתחברות הצליחה, מעביר נתונים...";
+          notifyParent("success", response.accessToken);
+          return;
+        }
+
+        // If no redirect response was detected, trigger the interactive login
+        await msalInstance.loginRedirect(authParameters);
+
+      } catch (error) {
+        console.error("Auth redirect error:", error);
+        const statusElem = document.getElementById("auth-status-text");
+        if (statusElem) {
+          statusElem.innerText = "שגיאה: " + error.message;
+        }
+        notifyParent("error", error.message || "Authentication failed");
+      }
+    });
+  </script>
 </body>
 </html>

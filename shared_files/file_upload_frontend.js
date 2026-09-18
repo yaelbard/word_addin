@@ -1,5 +1,5 @@
 // Variables to store the uploaded document data on window
-console.log("🔥 UPLOAD FILE SCRIPT LOADED SUCCESSFULLY!");
+console.log("🔥 file_upload_frontend.js LOADED SUCCESSFULLY!");
 window.uploadedFiles = [];  
 window.uploadedFileText = "";
 

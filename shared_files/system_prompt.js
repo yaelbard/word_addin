@@ -1,3 +1,4 @@
+console.log("🔥  system_prompt.js LOADED SUCCESSFULLY!");
 window.SYSTEM_PROMPT = `AI Word assistant. Analyze full doc context directly without relying on mouse selection. Use natural Hebrew.
 Output STRICT JSON:
 {

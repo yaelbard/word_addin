@@ -1,7 +1,9 @@
+console.log("🔥 UPLOAD fileparser.js LOADED SUCCESSFULLY!");
 if (window.pdfjsLib) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
-function parseSingleFile(file) {
+
+window.parseSingleFile = function(file) {
   return new Promise((resolve, reject) => {
     const fileExtension = file.name.split(".").pop().toLowerCase();
     const reader = new FileReader();
@@ -11,7 +13,7 @@ function parseSingleFile(file) {
     if (fileExtension === "docx") {
       reader.onload = async (e) => {
         try {
-          const text = await extractTextFromDocx(e.target.result);
+          const text = await window.extractTextFromDocx(e.target.result);
           resolve(`--- תוכן קובץ Word: ${file.name} ---\n${text.trim()}\n`);
         } catch (err) {
           reject(err);
@@ -22,7 +24,7 @@ function parseSingleFile(file) {
     } else if (fileExtension === "pdf") {
       reader.onload = async (e) => {
         try {
-          const text = await extractTextFromPdf(e.target.result);
+          const text = await window.extractTextFromPdf(e.target.result);
           resolve(`--- תוכן קובץ PDF: ${file.name} ---\n${text.trim()}\n`);
         } catch (err) {
           reject(err);
@@ -33,19 +35,19 @@ function parseSingleFile(file) {
     } else if (fileExtension === "xlsx" || fileExtension === "xls") {
       reader.onload = async (e) => {
         try {
-          const text = await extractTextFromExcel(e.target.result);
+          const text = await window.extractTextFromExcel(e.target.result);
           resolve(`--- תוכן קובץ Excel: ${file.name} ---\n${text.trim()}\n`);
         } catch (err) {
           reject(new Error(`שגיאה בפענוח קובץ אקסל ${file.name}: ${err.message}`));
         }
       };
       reader.readAsArrayBuffer(file);
-    } 
-    else if (fileExtension === "doc") {
-  reject(new Error(`הקובץ "${file.name}" הוא בפורמט .doc ישן. יש לשמור אותו כ-docx ולהעלות שוב.`));
-  return;
-    }
-    else {
+
+    } else if (fileExtension === "doc") {
+      reject(new Error(`הקובץ "${file.name}" הוא בפורמט .doc ישן. יש לשמור אותו כ-docx ולהעלות שוב.`));
+      return;
+
+    } else {
       // קובצי טקסט רגילים (txt, csv, md וכו')
       reader.onload = (e) => {
         resolve(`--- תוכן קובץ טקסט: ${file.name} ---\n${e.target.result.trim()}\n`);
@@ -53,15 +55,27 @@ function parseSingleFile(file) {
       reader.readAsText(file, "UTF-8");
     }
   });
-}
+};
 
-async function extractTextFromDocx(arrayBuffer) {
-  const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+window.extractTextFromDocx = async function(arrayBuffer) {
+  if (!window.mammoth) {
+    throw new Error("ספריית mammoth לא נטענה בדף");
+  }
+  const result = await window.mammoth.extractRawText({ arrayBuffer: arrayBuffer });
   return result.value.trim();
-}
+};
 
-async function extractTextFromPdf(arrayBuffer) {
-  const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+window.extractTextFromPdf = async function(arrayBuffer) {
+  if (!window.pdfjsLib) {
+    throw new Error("ספריית pdfjsLib לא נטענה בדף");
+  }
+
+  // וידוא שהגדרת ה-worker קיימת גם אם הספרייה נטענה מאוחר יותר
+  if (!window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+
+  const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
   const pdfDoc = await loadingTask.promise;
   let fullText = "";
 
@@ -89,20 +103,23 @@ async function extractTextFromPdf(arrayBuffer) {
   }
 
   return fullText.trim();
-}
+};
 
-async function extractTextFromExcel(arrayBuffer) {
+window.extractTextFromExcel = async function(arrayBuffer) {
+  if (!window.XLSX) {
+    throw new Error("ספריית XLSX לא נטענה בדף");
+  }
   const data = new Uint8Array(arrayBuffer);
-  const workbook = XLSX.read(data, { type: "array" });
+  const workbook = window.XLSX.read(data, { type: "array" });
   let excelText = "";
 
-  workbook.SheetNames.forEach(sheetName => {
+  workbook.SheetNames.forEach((sheetName) => {
     const worksheet = workbook.Sheets[sheetName];
-    const csvContent = XLSX.utils.sheet_to_csv(worksheet);
+    const csvContent = window.XLSX.utils.sheet_to_csv(worksheet);
     if (csvContent.trim()) {
       excelText += `[גיליון: ${sheetName}]\n${csvContent}\n\n`;
     }
   });
 
   return excelText.trim();
-}
+};

@@ -1,28 +1,48 @@
-const msalInstance = new msal.PublicClientApplication(msalConfig);
-let isMsalInitialized = false;
-
-async function initMsal() {
-  if (!isMsalInitialized) {
-    await msalInstance.initialize();
-    isMsalInitialized = true;
-  }
+console.log("🔥  word-auth.js LOADED SUCCESSFULLY!");
+// Ensure MSAL configuration and library are loaded before instantiation
+window.msalInstance = null;
+if (window.msal && window.msalConfig) {
+  window.msalInstance = new window.msal.PublicClientApplication(window.msalConfig);
 }
 
+window.isMsalInitialized = false;
+
 /**
- * פתיחת חלון אימות דרך Office Dialog API
+ * Initializes the MSAL PublicClientApplication instance
  */
-function openLoginDialog() {
+window.initMsal = async function() {
+  if (!window.msalInstance && window.msal && window.msalConfig) {
+    window.msalInstance = new window.msal.PublicClientApplication(window.msalConfig);
+  }
+
+  if (window.msalInstance && !window.isMsalInitialized) {
+    await window.msalInstance.initialize();
+    window.isMsalInitialized = true;
+  }
+};
+
+/**
+ * Opens the authentication dialog using the Office Dialog API
+ */
+window.openLoginDialog = function() {
   return new Promise((resolve, reject) => {
-    // שמירת המזהים ישירות ב-localStorage המשותף
-    if (!CONFIG || !CONFIG.clientId || !CONFIG.tenantId) {
-      reject(new Error("CONFIG.clientId or CONFIG.tenantId is missing in taskpane.js"));
+    const config = window.CONFIG;
+
+    if (!config || !config.clientId || !config.tenantId) {
+      reject(new Error("window.CONFIG.clientId or window.CONFIG.tenantId is missing."));
       return;
     }
-    localStorage.setItem("entra_clientId", CONFIG.clientId);
-    localStorage.setItem("entra_tenantId", CONFIG.tenantId);
 
-    // נתיב הדיאלוג נשאר נקי וקבוע
-    const dialogUrl = new URL("auth-redirect.html", window.location.href).href;
+    // Persist to localStorage so values survive the round-trip to Microsoft login
+    localStorage.setItem("entra_clientId", config.clientId);
+    localStorage.setItem("entra_tenantId", config.tenantId);
+
+    const params = new URLSearchParams({
+      clientId: config.clientId,
+      tenantId: config.tenantId
+    });
+
+    const dialogUrl = new URL(`auth-redirect.html?${params.toString()}`, window.location.href).href;
 
     Office.context.ui.displayDialogAsync(
       dialogUrl,
@@ -57,33 +77,33 @@ function openLoginDialog() {
       }
     );
   });
-}
-
-/**
- * פונקציית האימות הראשית
+};/**
+ * Primary token retrieval flow: attempts silent acquisition, falls back to interactive dialog
  */
-async function getAccessToken() {
-  await initMsal();
+window.getAccessToken = async function() {
+  await window.initMsal();
 
   const loginRequest = {
     scopes: ["https://cognitiveservices.azure.com/.default"]
   };
 
-  try {
-    const accounts = msalInstance.getAllAccounts();
+  // Attempt silent token retrieval if cached account session exists
+  if (window.msalInstance) {
+    try {
+      const accounts = window.msalInstance.getAllAccounts();
 
-    // אם קיים חשבון שמור, מנסים להוציא טוקן באופן שקט ללא שום חלון
-    if (accounts.length > 0) {
-      const silentResponse = await msalInstance.acquireTokenSilent({
-        ...loginRequest,
-        account: accounts[0]
-      });
-      return silentResponse.accessToken;
+      if (accounts.length > 0) {
+        const silentResponse = await window.msalInstance.acquireTokenSilent({
+          ...loginRequest,
+          account: accounts[0]
+        });
+        return silentResponse.accessToken;
+      }
+    } catch (silentError) {
+      console.warn("Silent token acquisition failed. Opening dialog...", silentError);
     }
-  } catch (silentError) {
-    console.warn("Silent token acquisition failed. Opening dialog...", silentError);
   }
 
-  // אם אין חשבון או שהטוקן השקט נכשל – פותחים דיאלוג ייעודי של אופיס
-  return await openLoginDialog();
-}
+  // Fall back to Office interactive login dialog
+  return await window.openLoginDialog();
+};

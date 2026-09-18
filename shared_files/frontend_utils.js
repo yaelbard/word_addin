@@ -1,12 +1,18 @@
-
+console.log("🔥 UPLOAD frontend_utils.js LOADED SUCCESSFULLY!");
 // Format file size helper
-function formatFileSize(bytes) {
+window.formatFileSize = function(bytes) {
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
   return (bytes / 1048576).toFixed(1) + " MB";
-}
-function appendMessage(role, text, actionType = "none") {
+};
+
+window.appendMessage = function(role, text, actionType = "none") {
   const chatBox = document.getElementById("chat-box");
+  if (!chatBox) {
+    console.warn("appendMessage: אלמנט chat-box לא נמצא ב-DOM");
+    return;
+  }
+
   const msgElement = document.createElement("div");
   msgElement.className = `msg ${role}`;
   msgElement.textContent = text;
@@ -20,4 +26,4 @@ function appendMessage(role, text, actionType = "none") {
 
   chatBox.appendChild(msgElement);
   chatBox.scrollTop = chatBox.scrollHeight;
-}
+};

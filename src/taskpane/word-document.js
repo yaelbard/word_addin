@@ -1,22 +1,30 @@
+console.log("🔥  word-document.js LOADED SUCCESSFULLY!");
 
-function normalizeText(str) {
+/**
+ * Strips hidden directional characters, standardizes quotes, and normalizes whitespace
+ */
+window.normalizeText = function(str) {
   if (!str) return "";
   return str
-    .replace(/[\u200B-\u200D\uFEFF\u200E\u200F]/g, "") // הסרת תווי כיווניות נסתרים
-    .replace(/[\u201C\u201D\u05F4"]/g, '"')             // איחוד כל סוגי הגרשיים
-    .replace(/[\u2018\u2019\u05F3']/g, "'")             // איחוד גרש בודד
-    .replace(/[\r\n\t]+/g, " ")                          // הפיכת ירידות שורה לרווח
-    .replace(/\s+/g, " ")                               // איחוד רווחים כפולים
+    .replace(/[\u200B-\u200D\uFEFF\u200E\u200F]/g, "") // Remove hidden directional marks
+    .replace(/[\u201C\u201D\u05F4"]/g, '"')             // Normalize double quotation marks
+    .replace(/[\u2018\u2019\u05F3']/g, "'")             // Normalize single quotation marks
+    .replace(/[\r\n\t]+/g, " ")                         // Convert line breaks and tabs to spaces
+    .replace(/\s+/g, " ")                               // Collapse multiple spaces into one
     .trim();
-}
-async function replaceDocumentSubstring(targetText, replacementContent) {
+};
+
+/**
+ * Finds and replaces a target text substring within the active Word document
+ */
+window.replaceDocumentSubstring = async function(targetText, replacementContent) {
   return Word.run(async (context) => {
     const body = context.document.body;
     const cleanTarget = (targetText || "").trim();
 
     if (!cleanTarget) throw new Error("Target text is empty.");
 
-    // שלב 1: חיפוש רגיל של Word (מהיר)
+    // Step 1: Standard direct Word search (fast path for shorter strings)
     if (cleanTarget.length <= 250) {
       const searchResults = body.search(cleanTarget, { 
         matchCase: false, 
@@ -26,31 +34,31 @@ async function replaceDocumentSubstring(targetText, replacementContent) {
       await context.sync();
 
       if (searchResults.items.length > 0) {
-        await applyContentToRange(context, searchResults.items[0], replacementContent, Word.InsertLocation.replace);
+        await window.applyContentToRange(context, searchResults.items[0], replacementContent, Word.InsertLocation.replace);
         return;
       }
     }
 
-    // שלב 2: סריקה לפי פסקאות מנורמלות (מתגבר על הבדלי מקלדת/גרשיים/רווחים)
+    // Step 2: Scan paragraphs with normalized comparison (handles quote/spacing differences)
     const paragraphs = body.paragraphs;
     paragraphs.load(["text", "items"]);
     await context.sync();
 
-    const normalizedTarget = normalizeText(cleanTarget);
+    const normalizedTarget = window.normalizeText(cleanTarget);
 
     for (let i = 0; i < paragraphs.items.length; i++) {
       const p = paragraphs.items[i];
-      const normalizedPText = normalizeText(p.text);
+      const normalizedPText = window.normalizeText(p.text);
 
       if (!normalizedPText) continue;
 
       if (normalizedPText.includes(normalizedTarget) || normalizedTarget.includes(normalizedPText)) {
-        await applyContentToRange(context, p, replacementContent, Word.InsertLocation.replace);
+        await window.applyContentToRange(context, p, replacementContent, Word.InsertLocation.replace);
         return;
       }
     }
 
-    // שלב 3: חיפוש תת-מחרוזת ראשונית (אם הסוף נחתך או שונה מעט)
+    // Step 3: Fallback prefix search if the end was truncated or slightly altered
     if (cleanTarget.length > 25) {
       const shortTarget = cleanTarget.substring(0, 25).trim();
       const fallbackSearch = body.search(shortTarget, { matchCase: false });
@@ -58,28 +66,39 @@ async function replaceDocumentSubstring(targetText, replacementContent) {
       await context.sync();
 
       if (fallbackSearch.items.length > 0) {
-        await applyContentToRange(context, fallbackSearch.items[0], replacementContent, Word.InsertLocation.replace);
+        await window.applyContentToRange(context, fallbackSearch.items[0], replacementContent, Word.InsertLocation.replace);
         return;
       }
     }
 
     throw new Error(`Target text not found: "${cleanTarget.substring(0, 35)}..."`);
   });
-}
-async function replaceEntireDocument(newContent) {
-  return Word.run(async (context) => {
-    const body = context.document.body;
-    await applyContentToRange(context, body, newContent, Word.InsertLocation.replace);
-  });
-}
+};
 
-async function insertTextAtEnd(newContent) {
+/**
+ * Replaces the entire body content of the active Word document
+ */
+window.replaceEntireDocument = async function(newContent) {
   return Word.run(async (context) => {
     const body = context.document.body;
-    await applyContentToRange(context, body, "\n" + newContent, Word.InsertLocation.end);
+    await window.applyContentToRange(context, body, newContent, Word.InsertLocation.replace);
   });
-}
-async function formatDocumentSubstring(targetText, formatOptions) {
+};
+
+/**
+ * Appends new text or HTML content to the end of the Word document
+ */
+window.insertTextAtEnd = async function(newContent) {
+  return Word.run(async (context) => {
+    const body = context.document.body;
+    await window.applyContentToRange(context, body, "\n" + newContent, Word.InsertLocation.end);
+  });
+};
+
+/**
+ * Applies font styling (bold, italic, underline, font family) to matching text
+ */
+window.formatDocumentSubstring = async function(targetText, formatOptions) {
   return Word.run(async (context) => {
     const body = context.document.body;
     const cleanTarget = (targetText || "").trim();
@@ -88,7 +107,7 @@ async function formatDocumentSubstring(targetText, formatOptions) {
 
     let targetRange = null;
 
-    // 1. חיפוש ישיר
+    // 1. Exact search
     const searchResults = body.search(cleanTarget, { matchCase: false });
     searchResults.load("items");
     await context.sync();
@@ -96,7 +115,7 @@ async function formatDocumentSubstring(targetText, formatOptions) {
     if (searchResults.items.length > 0) {
       targetRange = searchResults.items[0];
     } else {
-      // 2. חיפוש חלקי אם המדויק נכשל
+      // 2. Partial prefix search if exact match fails
       if (cleanTarget.length > 25) {
         const shortTarget = cleanTarget.substring(0, 25).trim();
         const fallbackSearch = body.search(shortTarget, { matchCase: false });
@@ -113,6 +132,7 @@ async function formatDocumentSubstring(targetText, formatOptions) {
       throw new Error(`Target text not found for formatting: "${cleanTarget.substring(0, 35)}..."`);
     }
 
+    // Apply requested formatting options
     if (formatOptions) {
       if (typeof formatOptions.bold === "boolean") targetRange.font.bold = formatOptions.bold;
       if (typeof formatOptions.underline === "boolean") targetRange.font.underline = formatOptions.underline ? "Single" : "None";
@@ -122,15 +142,18 @@ async function formatDocumentSubstring(targetText, formatOptions) {
 
     await context.sync();
   });
-}
+};
 
-async function applyContentToRange(context, targetRange, content, insertLocation) {
+/**
+ * Injects HTML or plain text into a specified Word range and enforces RTL alignment
+ */
+window.applyContentToRange = async function(context, targetRange, content, insertLocation) {
   let insertedRange;
-  // Detect if content contains HTML tags
+  // Detect if content contains HTML markup
   const hasHtml = /<[a-z][\s\S]*>/i.test(content);
 
   if (hasHtml) {
-    // Wrap with dir="rtl" to ensure proper bidirectional rendering
+    // Wrap with dir="rtl" to guarantee proper bidirectional rendering
     const wrappedHtml = `<div dir="rtl" style="text-align: right;">${content}</div>`;
     insertedRange = targetRange.insertHtml(wrappedHtml, insertLocation);
   } else {
@@ -146,4 +169,4 @@ async function applyContentToRange(context, targetRange, content, insertLocation
   });
 
   await context.sync();
-}
+};
