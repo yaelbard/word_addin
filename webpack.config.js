@@ -79,14 +79,6 @@ module.exports = async (env, options) => {
           },
         ],
       }),
-      new CopyWebpackPlugin({
-        patterns: [
-        {
-          from: "./shared_files/system_prompt.json", // או מיקום הקובץ שלך
-          to: "system_prompt.json",
-        },
-        ],
-      }),
       new HtmlWebpackPlugin({
         filename: "commands.html",
         template: "./src/commands/commands.html",
