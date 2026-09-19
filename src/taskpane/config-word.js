@@ -8,7 +8,6 @@ window.CONFIG = {
   clientId: "2603315b-9e9f-4b43-b2fd-3de9ff9c41bd", 
   tenantId: "73ea3442-65e1-4556-a609-904f5d2e45ab"
 };
-
 // Compute fully-qualified redirect URL based on current host/path
 window.redirectPageUri = new URL("auth-redirect.html", window.location.href).href;
 
@@ -25,24 +24,28 @@ window.msalConfig = {
     storeAuthStateInCookie: true
   }
 };
+
 window.SYSTEM_PROMPT = "";
 
 async function loadPromptForJS() {
   try {
-    const prompturl= "https://yaelbard.github.io/word_addin/shared_files/system_prompt.json"
+    const promptUrl = "https://yaelbard.github.io/word_addin/shared_files/system_prompt.json";
+    
     console.log("Fetching prompt from:", promptUrl); 
-    const response = await fetch(prompturl);
+    
+    const response = await fetch(promptUrl);
     
     if (!response.ok) {
-      throw new Error(`Failed to load prompt.json: ${response.statusText}`);
+      throw new Error(`Failed to load system_prompt.json: ${response.statusText}`);
     }
     
     const data = await response.json();
-        window.SYSTEM_PROMPT = data.SYSTEM_PROMPT;
+    window.SYSTEM_PROMPT = data.SYSTEM_PROMPT;
     
     console.log("🔥 SYSTEM_PROMPT loaded successfully into window!");
   } catch (error) {
     console.error("Error loading system prompt:", error);
   }
 }
+
 loadPromptForJS();
