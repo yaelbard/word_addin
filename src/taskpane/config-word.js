@@ -25,12 +25,13 @@ window.msalConfig = {
     storeAuthStateInCookie: true
   }
 };
-// יצירת משתנה גלובלי ריק שיתמלא בטעינה
 window.SYSTEM_PROMPT = "";
 
 async function loadPromptForJS() {
   try {
-    const response = await fetch("system_prompt.json");
+    const prompturl= "https://yaelbard.github.io/word_addin/shared_files/system_prompt.json"
+    console.log("Fetching prompt from:", promptUrl); 
+    const response = await fetch(prompturl);
     
     if (!response.ok) {
       throw new Error(`Failed to load prompt.json: ${response.statusText}`);
