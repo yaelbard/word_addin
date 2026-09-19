@@ -25,3 +25,23 @@ window.msalConfig = {
     storeAuthStateInCookie: true
   }
 };
+// יצירת משתנה גלובלי ריק שיתמלא בטעינה
+window.SYSTEM_PROMPT = "";
+
+async function loadPromptForJS() {
+  try {
+    const response = await fetch("system_prompt.json");
+    
+    if (!response.ok) {
+      throw new Error(`Failed to load prompt.json: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+        window.SYSTEM_PROMPT = data.SYSTEM_PROMPT;
+    
+    console.log("🔥 SYSTEM_PROMPT loaded successfully into window!");
+  } catch (error) {
+    console.error("Error loading system prompt:", error);
+  }
+}
+loadPromptForJS();
