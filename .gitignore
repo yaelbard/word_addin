@@ -1,1 +1,48 @@
-node_modules
+build_env/
+venv/
+.venv/
+env/
+ENV/
+
+dist/
+build/
+*.spec
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+.env
+.env.local
+.env.*.local
+
+.msal_cache.bin
+msal_cache.bin
+*.token
+
+# configurations/config.local.py
+# configurations/local_settings.json
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# frontend/dist/
+# frontend/bundle.js
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+downloads/
+temp/
+*.log
+*.docx
