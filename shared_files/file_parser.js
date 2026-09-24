@@ -1,4 +1,5 @@
 console.log("🔥 UPLOAD fileparser.js LOADED SUCCESSFULLY!");
+
 if (window.pdfjsLib) {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
@@ -10,6 +11,7 @@ window.parseSingleFile = function(file) {
 
     reader.onerror = () => reject(new Error(`קריאת הקובץ ${file.name} נכשלה`));
 
+    // 1. קובצי Word
     if (fileExtension === "docx") {
       reader.onload = async (e) => {
         try {
@@ -21,6 +23,7 @@ window.parseSingleFile = function(file) {
       };
       reader.readAsArrayBuffer(file);
 
+    // 2. קובצי PDF
     } else if (fileExtension === "pdf") {
       reader.onload = async (e) => {
         try {
@@ -32,6 +35,7 @@ window.parseSingleFile = function(file) {
       };
       reader.readAsArrayBuffer(file);
 
+    // 3. קובצי Excel
     } else if (fileExtension === "xlsx" || fileExtension === "xls") {
       reader.onload = async (e) => {
         try {
@@ -43,18 +47,50 @@ window.parseSingleFile = function(file) {
       };
       reader.readAsArrayBuffer(file);
 
+    } else if (["jpg", "jpeg", "png", "bmp", "webp"].includes(fileExtension)) {
+      reader.onload = async (e) => {
+        try {
+          const text = await window.extractTextFromImage(e.target.result);
+          resolve(`--- תוכן תמונה: ${file.name} (OCR) ---\n${text.trim() || "[לא זוהה טקסט בתמונה]"}\n`);
+        } catch (err) {
+          reject(new Error(`שגיאה בפענוח תמונה ${file.name}: ${err.message}`));
+        }
+      };
+      reader.readAsDataURL(file);
+
     } else if (fileExtension === "doc") {
       reject(new Error(`הקובץ "${file.name}" הוא בפורמט .doc ישן. יש לשמור אותו כ-docx ולהעלות שוב.`));
       return;
 
+    // 6. קובצי טקסט פשוטים (txt, csv, md)
     } else {
-      // קובצי טקסט רגילים (txt, csv, md וכו')
       reader.onload = (e) => {
         resolve(`--- תוכן קובץ טקסט: ${file.name} ---\n${e.target.result.trim()}\n`);
       };
       reader.readAsText(file, "UTF-8");
     }
   });
+};
+
+// --- פונקציית חילוץ טקסט מתמונה באמצעות Tesseract.js ---
+window.extractTextFromImage = async function(imageSource) {
+  if (!window.Tesseract) {
+    throw new Error("ספריית Tesseract.js לא נטענה בדף");
+  }
+
+  const result = await window.Tesseract.recognize(
+    imageSource,
+    'heb+eng',
+    {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          console.log(`[OCR Progress]: ${Math.round((m.progress || 0) * 100)}%`);
+        }
+      }
+    }
+  );
+
+  return result.data.text.trim();
 };
 
 window.extractTextFromDocx = async function(arrayBuffer) {
@@ -70,7 +106,6 @@ window.extractTextFromPdf = async function(arrayBuffer) {
     throw new Error("ספריית pdfjsLib לא נטענה בדף");
   }
 
-  // וידוא שהגדרת ה-worker קיימת גם אם הספרייה נטענה מאוחר יותר
   if (!window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   }
@@ -84,21 +119,26 @@ window.extractTextFromPdf = async function(arrayBuffer) {
     const textContent = await page.getTextContent();
     const pageText = textContent.items.map((item) => item.str).join(" ").trim();
 
-    // אם קיים טקסט דיגיטלי בעמוד
+    // בדיקה אם קיים טקסט דיגיטלי בעמוד
     if (pageText.length > 30) {
       fullText += `\n--- עמוד ${pageNum} ---\n` + pageText;
     } else {
-      // עמוד סרוק / תמונה: יצירת תמונה באמצעות Canvas בפורמט Base64
-      const viewport = page.getViewport({ scale: 1.5 });
+      // עמוד סרוק ב-PDF: רינדור ל-Canvas והעברה ל-OCR מקומי
+      const viewport = page.getViewport({ scale: 2.0 });
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       canvas.height = viewport.height;
       canvas.width = viewport.width;
 
       await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-      const imageBase64 = canvas.toDataURL("image/jpeg", 0.85);
 
-      fullText += `\n--- עמוד סרוק ${pageNum} (תמונה) ---\n[Image: ${imageBase64}]\n`;
+      try {
+        const ocrText = await window.extractTextFromImage(canvas);
+        fullText += `\n--- עמוד סרוק ${pageNum} (OCR) ---\n` + (ocrText || "[לא זוהה טקסט קריא בעמוד זה]");
+      } catch (ocrErr) {
+        console.error(`שגיאה ב-OCR עמוד ${pageNum}:`, ocrErr);
+        fullText += `\n--- עמוד סרוק ${pageNum} ---\n[שגיאה בחילוץ טקסט מתמונה: ${ocrErr.message}]`;
+      }
     }
   }
 
@@ -122,4 +162,4 @@ window.extractTextFromExcel = async function(arrayBuffer) {
   });
 
   return excelText.trim();
-};
+}
