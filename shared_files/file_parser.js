@@ -8,10 +8,7 @@ window.parseSingleFile = function(file) {
   return new Promise((resolve, reject) => {
     const fileExtension = file.name.split(".").pop().toLowerCase();
     const reader = new FileReader();
-
     reader.onerror = () => reject(new Error(`קריאת הקובץ ${file.name} נכשלה`));
-
-    // 1. קובצי Word
     if (fileExtension === "docx") {
       reader.onload = async (e) => {
         try {
@@ -22,8 +19,6 @@ window.parseSingleFile = function(file) {
         }
       };
       reader.readAsArrayBuffer(file);
-
-    // 2. קובצי PDF
     } else if (fileExtension === "pdf") {
       reader.onload = async (e) => {
         try {
@@ -34,8 +29,6 @@ window.parseSingleFile = function(file) {
         }
       };
       reader.readAsArrayBuffer(file);
-
-    // 3. קובצי Excel
     } else if (fileExtension === "xlsx" || fileExtension === "xls") {
       reader.onload = async (e) => {
         try {
@@ -46,7 +39,6 @@ window.parseSingleFile = function(file) {
         }
       };
       reader.readAsArrayBuffer(file);
-
     } else if (["jpg", "jpeg", "png", "bmp", "webp"].includes(fileExtension)) {
       reader.onload = async (e) => {
         try {
@@ -57,12 +49,8 @@ window.parseSingleFile = function(file) {
         }
       };
       reader.readAsDataURL(file);
-
     } else if (fileExtension === "doc") {
       reject(new Error(`הקובץ "${file.name}" הוא בפורמט .doc ישן. יש לשמור אותו כ-docx ולהעלות שוב.`));
-      return;
-
-    // 6. קובצי טקסט פשוטים (txt, csv, md)
     } else {
       reader.onload = (e) => {
         resolve(`--- תוכן קובץ טקסט: ${file.name} ---\n${e.target.result.trim()}\n`);
@@ -72,24 +60,17 @@ window.parseSingleFile = function(file) {
   });
 };
 
-// --- פונקציית חילוץ טקסט מתמונה באמצעות Tesseract.js ---
 window.extractTextFromImage = async function(imageSource) {
   if (!window.Tesseract) {
     throw new Error("ספריית Tesseract.js לא נטענה בדף");
   }
-
-  const result = await window.Tesseract.recognize(
-    imageSource,
-    'heb+eng',
-    {
-      logger: m => {
-        if (m.status === 'recognizing text') {
-          console.log(`[OCR Progress]: ${Math.round((m.progress || 0) * 100)}%`);
-        }
+  const result = await window.Tesseract.recognize(imageSource, "heb+eng", {
+    logger: (m) => {
+      if (m.status === "recognizing text") {
+        console.log(`[OCR Progress]: ${Math.round((m.progress || 0) * 100)}%`);
       }
     }
-  );
-
+  });
   return result.data.text.trim();
 };
 
@@ -105,39 +86,77 @@ window.extractTextFromPdf = async function(arrayBuffer) {
   if (!window.pdfjsLib) {
     throw new Error("ספריית pdfjsLib לא נטענה בדף");
   }
-
   if (!window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+  if (!window.Tesseract) {
+    throw new Error("ספריית Tesseract.js לא נטענה בדף");
   }
 
   const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
   const pdfDoc = await loadingTask.promise;
   let fullText = "";
+  const lengthThreshold = 30;
+  let ocrWorker = null;
 
-  for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-    const page = await pdfDoc.getPage(pageNum);
-    const textContent = await page.getTextContent();
-    const pageText = textContent.items.map((item) => item.str).join(" ").trim();
+  try {
+    console.log("🔧 יוצר Tesseract Worker עבור ה-PDF...");
+    ocrWorker = await window.Tesseract.createWorker("heb+eng", 1, {
+      logger: (m) => {
+        if (m.status === "loading language traineddata") {
+          console.log(`[OCR] טוען שפות: ${Math.round((m.progress || 0) * 100)}%`);
+        }
+        if (m.status === "initializing api") {
+          console.log(`[OCR] מאתחל מנוע: ${Math.round((m.progress || 0) * 100)}%`);
+        }
+        if (m.status === "recognizing text") {
+          console.log(`[OCR] עיבוד: ${Math.round((m.progress || 0) * 100)}%`);
+        }
+      }
+    });
+    console.log("✅ Tesseract Worker מוכן לשימוש");
 
-    // בדיקה אם קיים טקסט דיגיטלי בעמוד
-    if (pageText.length > 30) {
-      fullText += `\n--- עמוד ${pageNum} ---\n` + pageText;
-    } else {
-      // עמוד סרוק ב-PDF: רינדור ל-Canvas והעברה ל-OCR מקומי
-      const viewport = page.getViewport({ scale: 2.0 });
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
+    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+      const page = await pdfDoc.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item) => item.str).join(" ").trim();
+      const meaningfulCharCount = pageText.replace(/\s/g, "").length;
 
-      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+      if (meaningfulCharCount > lengthThreshold) {
+        console.log(`📄 עמוד ${pageNum}: נמצאו ${meaningfulCharCount} תווים משמעותיים, משתמש בטקסט הדיגיטלי.`);
+        fullText += `\n--- עמוד ${pageNum} ---\n` + pageText;
+      } else {
+        console.log(`📸 עמוד ${pageNum}: נמצאו רק ${meaningfulCharCount} תווים משמעותיים, מפעיל OCR...`);
+        const viewport = page.getViewport({ scale: 2.0 });
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
 
+        try {
+          await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+          const dataUrl = canvas.toDataURL("image/png");
+          console.log(`🔍 OCR עמוד ${pageNum} באמצעות Worker משותף...`);
+          const result = await ocrWorker.recognize(dataUrl);
+          const ocrText = result.data && result.data.text ? result.data.text.trim() : "";
+          fullText += `\n--- עמוד סרוק ${pageNum} (OCR) ---\n` + (ocrText || "[לא זוהה טקסט קריא בעמוד זה]");
+        } catch (ocrErr) {
+          console.error(`שגיאה ב-OCR עמוד ${pageNum}:`, ocrErr);
+          fullText += `\n--- עמוד סרוק ${pageNum} ---\n` + `[שגיאה בחילוץ טקסט מתמונה: ${ocrErr.message || ocrErr}]`;
+        } finally {
+          canvas.width = 0;
+          canvas.height = 0;
+        }
+      }
+    }
+  } finally {
+    if (ocrWorker) {
+      console.log("🧹 סוגר Tesseract Worker...");
       try {
-        const ocrText = await window.extractTextFromImage(canvas);
-        fullText += `\n--- עמוד סרוק ${pageNum} (OCR) ---\n` + (ocrText || "[לא זוהה טקסט קריא בעמוד זה]");
-      } catch (ocrErr) {
-        console.error(`שגיאה ב-OCR עמוד ${pageNum}:`, ocrErr);
-        fullText += `\n--- עמוד סרוק ${pageNum} ---\n[שגיאה בחילוץ טקסט מתמונה: ${ocrErr.message}]`;
+        await ocrWorker.terminate();
+        console.log("✅ Tesseract Worker נסגר בהצלחה");
+      } catch (terminateErr) {
+        console.warn("⚠️ שגיאה בסגירת Tesseract Worker:", terminateErr);
       }
     }
   }
@@ -157,9 +176,9 @@ window.extractTextFromExcel = async function(arrayBuffer) {
     const worksheet = workbook.Sheets[sheetName];
     const csvContent = window.XLSX.utils.sheet_to_csv(worksheet);
     if (csvContent.trim()) {
-      excelText += `[גיליון: ${sheetName}]\n${csvContent}\n\n`;
+      excelText += `[גיליון: ${sheetName}]\n` + `${csvContent}\n\n`;
     }
   });
 
   return excelText.trim();
-}
+};
