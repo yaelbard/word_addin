@@ -61,8 +61,6 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
         + `?api-version=${config.apiVersion}`
     );
 
-    console.log("Azure OpenAI Request URL:", url);
-
     try {
         if (typeof window.getAccessToken !== "function") {
             throw new Error(
@@ -259,11 +257,6 @@ window.fillFormFromJson = async function(agentResponse) {
                 ranges.load("items/text");
                 await context.sync();
 
-                console.log(
-                    `Tag "${tag}" found `
-                    + `${ranges.items.length} time(s).`
-                );
-
                 if (ranges.items.length === 0) {
                     console.warn(
                         `Tag "${tag}" was not found in the document.`
@@ -274,22 +267,12 @@ window.fillFormFromJson = async function(agentResponse) {
                 for (let index = ranges.items.length - 1; index >= 0; index--) {
                     const range = ranges.items[index];
 
-                    console.log(
-                        `Replacing "${range.text}" `
-                        + `with "${value}".`
-                    );
-
                     if (range.text === tag) {
                         range.insertText(value, "Replace");
                     }
                 }
 
                 await context.sync();
-
-                console.log(
-                    `Field "${key}" completed with `
-                    + `${ranges.items.length} replacement(s).`
-                );
             }
         });
     } catch (error) {
@@ -349,8 +332,6 @@ window.runFoundryAgent = async function(
         store: false
     };
 
-    console.log("Foundry Agent URL:", url);
-    console.log("Foundry Agent:", agent.name);
 
     const response = await fetch(url, {
         method: "POST",
@@ -561,11 +542,6 @@ window.processAgentRequest = async function() {
             agentConfig,
             agent,
             userInput
-        );
-
-        console.log(
-            "Validated Foundry Agent JSON:",
-            agentOutput
         );
 
         await window.fillFormFromJson(agentOutput);

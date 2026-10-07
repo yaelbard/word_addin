@@ -133,7 +133,9 @@ Office.onReady((info) => {
     const agentSelector = document.getElementById(
         "agent-selector"
     );
-
+    const sourceText = document.getElementById(
+    "source-text"
+);
     if (openSidebarBtn) {
         openSidebarBtn.addEventListener(
             "click",
@@ -172,7 +174,25 @@ Office.onReady((info) => {
         runAgentBtn.dataset.agentHandlerAttached = "true";
     }
 }
+if (sourceText) {
+    sourceText.addEventListener(
+        "keydown",
+        (event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+
+                if (
+                    typeof window.processAgentRequest
+                    === "function"
+                ) {
+                    window.processAgentRequest();
+                }
+            }
+        }
+    );
+}
 });
+
 
 // Core chat logic
 window.handleSend = async function() {

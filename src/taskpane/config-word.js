@@ -32,6 +32,9 @@ window.AGENT_CONFIG = {
   agents: {
     "deed-of-sale-007":{
       name: "deed-of-sale-007",
+    },
+    "cautionaty-note-cancel-request":{
+      name: "cautionaty-note-cancel-request"
     }
   }
 };
