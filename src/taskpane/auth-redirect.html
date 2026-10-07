@@ -65,7 +65,8 @@
         await msalInstance.initialize();
 
         const authParameters = {
-          scopes: ["https://cognitiveservices.azure.com/.default"]
+          //scopes: ["https://cognitiveservices.azure.com/.default"] old
+          scopes: ["https://ai.azure.com/.default"] //new
         };
 
         // Handle redirect return flow from Microsoft login page

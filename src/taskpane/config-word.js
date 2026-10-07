@@ -25,6 +25,17 @@ window.msalConfig = {
   }
 };
 
+window.AGENT_CONFIG = {
+  //endpoint: "https://gpt-agents-1972-foundry.services.ai.azure.com/api/projects/gpt-agents-1972-proj/agents/deed-of-sale-007/endpoint/protocols/openai/responses/?api-version=v1",
+  endpoint: "https://gpt-agents-1972-foundry.services.ai.azure.com/api/projects/gpt-agents-1972-proj",
+  apiVersion: "v1",
+  agents: {
+    "deed-of-sale-007":{
+      name: "deed-of-sale-007",
+    }
+  }
+};
+
 window.SYSTEM_PROMPT = "";
 
 async function loadPromptForJS() {

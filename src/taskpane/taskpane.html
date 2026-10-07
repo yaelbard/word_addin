@@ -18,6 +18,35 @@
   <link rel="stylesheet" href="taskpane.css" />
 </head>
 <body>
+  <!--button for opening agents sidebar-->
+  <button id="open-agents-sidebar-btn" type="button"> מילוי טפסים</button>
+
+  <!--overlay when agents sidebar is open-->
+  <div id="agents-sidebar-overlay"></div>
+
+  <!-- agents sidebar -->
+  <aside id="agents-sidebar" aria-label="תפריט מילוי מסמכים אוטומטי">
+    <div class="sidebar-header">
+      <h3>מילוי מסמכים על ידי סוכנים</h3>
+      <button id="close-agents-sidebar-btn" class="close-sidebar-btn" type="button" aria-label="סגור">&times;</button>
+    </div>
+
+    <div class="sidebar-field">
+      <label for="agent-selector">בחר תבנית מסמך:</label>
+      <select id="agent-selector">
+        <option value="deed-of-sale-007">שטר מכר</option>
+      </select>
+    </div>
+
+    <div class="sidebar-field">
+      <label for="source-text">פרטי העסקה / נתונים גולמיים:</label>
+      <textarea id="source-text" placeholder="הדבק כאן את הטקסט או הפרטים שהסוכן צריך לחלץ..."></textarea>
+    </div>
+
+    <button id="run-agent-btn" type="button">הפעל סוכן ומלא מסמך</button>
+
+    <div id="agent-status"></div>
+  </aside>
 
   <!-- Chat conversation area -->
   <div id="chat-box">

@@ -84,7 +84,9 @@ window.getAccessToken = async function() {
   await window.initMsal();
 
   const loginRequest = {
-    scopes: ["https://cognitiveservices.azure.com/.default"]
+    //scopes: ["https://cognitiveservices.azure.com/.default"] old
+    scopes: ["https://ai.azure.com/.default"] //new
+
   };
 
   // Attempt silent token retrieval if cached account session exists

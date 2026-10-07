@@ -170,3 +170,40 @@ window.applyContentToRange = async function(context, targetRange, content, inser
 
   await context.sync();
 };
+/**
+ * Replaces all occurrences of a form tag within the active Word document
+ */
+window.replaceAllFormTags = async function(targetTag, replacementContent) {
+  return Word.run(async (context) => {
+    if (!targetTag || typeof targetTag !== "string") {
+      throw new Error("Target tag is empty.");
+    }
+
+    if (typeof replacementContent !== "string") {
+      throw new Error("Replacement content must be a string.");
+    }
+
+    const body = context.document.body;
+    const searchResults = body.search(targetTag, {
+      matchCase: true,
+      matchWholeWord: false
+    });
+
+    searchResults.load("items");
+    await context.sync();
+
+    if (searchResults.items.length === 0) {
+      console.warn(`Form tag not found: "${targetTag}"`);
+      return;
+    }
+
+    for (const range of searchResults.items) {
+      await window.applyContentToRange(
+        context,
+        range,
+        replacementContent,
+        Word.InsertLocation.replace
+      );
+    }
+  });
+};
