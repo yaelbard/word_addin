@@ -1,6 +1,6 @@
 console.log("🔥 api-client.js LOADED SUCCESSFULLY!");
 
-// Initialize conversation history on the global window object
+// Initialize normal chat conversation history.
 window.conversationHistory = [
     {
         role: "system",
@@ -12,19 +12,19 @@ window.conversationHistory = [
     }
 ];
 
-// Call Azure OpenAI Chat Completions
+// Call Azure OpenAI Chat Completions.
 window.callAzureAI = async function(displayPrompt, apiPrompt) {
     if (typeof window.appendMessage === "function") {
         window.appendMessage("user", displayPrompt);
     }
 
-    // Update system prompt if it was assigned after initial script execution
     if (
         window.conversationHistory.length > 0
         && !window.conversationHistory[0].content
         && window.SYSTEM_PROMPT
     ) {
-        window.conversationHistory[0].content = window.SYSTEM_PROMPT;
+        window.conversationHistory[0].content =
+            window.SYSTEM_PROMPT;
     }
 
     window.conversationHistory.push({
@@ -41,7 +41,7 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
     ) {
         const errorMsg = (
             "Configuration error: window.CONFIG is missing "
-            +"or incomplete."
+            + "or incomplete."
         );
 
         console.error(errorMsg);
@@ -56,9 +56,9 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
     const baseEndpoint = config.endpoint.replace(/\/+$/, "");
 
     const url = (
-        `${baseEndpoint}/openai/deployments/` +
-        `${config.deployment}/chat/completions` +
-        `?api-version=${config.apiVersion}`
+        `${baseEndpoint}/openai/deployments/`
+        + `${config.deployment}/chat/completions`
+        + `?api-version=${config.apiVersion}`
     );
 
     console.log("Azure OpenAI Request URL:", url);
@@ -74,6 +74,7 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
 
         const requestPayload = {
             messages: window.conversationHistory,
+            store: false,
             response_format: {
                 type: "json_object"
             },
@@ -96,14 +97,14 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
             if (response.status === 401) {
                 throw new Error(
                     "401 Unauthorized: The Microsoft Entra token "
-                   + "is missing, expired, or has the wrong audience."
+                    + "is missing, expired, or has the wrong audience."
                 );
             }
 
             if (response.status === 403) {
                 throw new Error(
                     "403 Forbidden: The signed-in user does not have "
-                    +"permission to access the Azure OpenAI resource."
+                    + "permission to access the Azure OpenAI resource."
                 );
             }
 
@@ -113,8 +114,8 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
                 );
 
                 throw new Error(
-                    `Rate limit exceeded. Please retry after ` +
-                    `${retryAfter} seconds.`
+                    `Rate limit exceeded. Please retry after `
+                    + `${retryAfter} seconds.`
                 );
             }
 
@@ -158,13 +159,13 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
             );
         }
 
-        // Execute all requested Word document actions sequentially
         if (Array.isArray(aiResponse.actions)) {
             for (const act of aiResponse.actions) {
                 if (
                     act.type === "format_text"
                     && act.target_text
-                    && typeof window.formatDocumentSubstring === "function"
+                    && typeof window.formatDocumentSubstring
+                    === "function"
                 ) {
                     await window.formatDocumentSubstring(
                         act.target_text,
@@ -173,7 +174,8 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
                 } else if (
                     act.type === "replace_all"
                     && act.action_text
-                    && typeof window.replaceEntireDocument === "function"
+                    && typeof window.replaceEntireDocument
+                    === "function"
                 ) {
                     await window.replaceEntireDocument(
                         act.action_text
@@ -181,7 +183,8 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
                 } else if (
                     act.type === "replace_text"
                     && act.target_text
-                    && typeof window.replaceDocumentSubstring === "function"
+                    && typeof window.replaceDocumentSubstring
+                    === "function"
                 ) {
                     await window.replaceDocumentSubstring(
                         act.target_text,
@@ -190,7 +193,8 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
                 } else if (
                     act.type === "insert_end"
                     && act.action_text
-                    && typeof window.insertTextAtEnd === "function"
+                    && typeof window.insertTextAtEnd
+                    === "function"
                 ) {
                     await window.insertTextAtEnd(
                         act.action_text
@@ -199,19 +203,22 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
             }
         }
     } catch (error) {
-        console.error("Azure OpenAI Fetch error:", error);
+        console.error(
+            "Azure OpenAI Fetch error:",
+            error
+        );
 
         if (typeof window.appendMessage === "function") {
             window.appendMessage(
                 "assistant",
-                "Communication/parsing error: " +
-                `${error.message}\n\nEndpoint URL:\n${url}`
+                "Communication/parsing error: "
+                + `${error.message}\n\nEndpoint URL:\n${url}`
             );
         }
     }
 };
 
-// Fill all matching Word form tags from the agent JSON response
+// Fill the Word document from the agent JSON response.
 window.fillFormFromJson = async function(agentResponse) {
     try {
         const formData = (
@@ -230,36 +237,70 @@ window.fillFormFromJson = async function(agentResponse) {
             );
         }
 
-        for (const [key, value] of Object.entries(formData)) {
-            const targetTag = `{{${key}}}`;
+        await Word.run(async (context) => {
+            const body = context.document.body;
 
-            if (typeof value !== "string") {
-                console.error(
-                    `Invalid value for tag "${key}".`
-                );
-                continue;
-            }
+            for (const [key, value] of Object.entries(formData)) {
+                if (typeof value !== "string") {
+                    console.warn(
+                        `Skipping field "${key}": `
+                        + "value is not a string."
+                    );
+                    continue;
+                }
 
-            if (
-                typeof window.replaceAllFormTags === "function"
-            ) {
-                await window.replaceAllFormTags(
-                    targetTag,
-                    value
+                const tag = `{{${key}}}`;
+
+                const ranges = body.search(tag, {
+                    matchCase: true,
+                    matchWholeWord: false
+                });
+
+                ranges.load("items/text");
+                await context.sync();
+
+                console.log(
+                    `Tag "${tag}" found `
+                    + `${ranges.items.length} time(s).`
                 );
-            } else {
-                throw new Error(
-                    "Function replaceAllFormTags is not defined on window."
+
+                if (ranges.items.length === 0) {
+                    console.warn(
+                        `Tag "${tag}" was not found in the document.`
+                    );
+                    continue;
+                }
+
+                for (let index = ranges.items.length - 1; index >= 0; index--) {
+                    const range = ranges.items[index];
+
+                    console.log(
+                        `Replacing "${range.text}" `
+                        + `with "${value}".`
+                    );
+
+                    if (range.text === tag) {
+                        range.insertText(value, "Replace");
+                    }
+                }
+
+                await context.sync();
+
+                console.log(
+                    `Field "${key}" completed with `
+                    + `${ranges.items.length} replacement(s).`
                 );
             }
-        }
+        });
     } catch (error) {
-        console.error("Form filling error:", error);
+        console.error(
+            "Form filling error:",
+            error
+        );
         throw error;
     }
 };
-
-// Run the selected Microsoft Foundry Agent
+// Send one independent request to the selected Foundry Agent.
 window.runFoundryAgent = async function(
     accessToken,
     config,
@@ -275,11 +316,15 @@ window.runFoundryAgent = async function(
     }
 
     if (!config.apiVersion) {
-        throw new Error("Foundry Agent API version is missing.");
+        throw new Error(
+            "Foundry Agent API version is missing."
+        );
     }
 
     if (!agent || !agent.name) {
-        throw new Error("Foundry Agent name is missing.");
+        throw new Error(
+            "Foundry Agent name is missing."
+        );
     }
 
     if (!userInput || !userInput.trim()) {
@@ -289,9 +334,9 @@ window.runFoundryAgent = async function(
     const baseEndpoint = config.endpoint.replace(/\/+$/, "");
 
     const url = (
-        `${baseEndpoint}/agents/${encodeURIComponent(agent.name)}` +
-        `/endpoint/protocols/openai/responses` +
-        `?api-version=${config.apiVersion}`
+        `${baseEndpoint}/agents/${encodeURIComponent(agent.name)}`
+        + `/endpoint/protocols/openai/responses`
+        + `?api-version=${config.apiVersion}`
     );
 
     const requestPayload = {
@@ -300,12 +345,12 @@ window.runFoundryAgent = async function(
                 role: "user",
                 content: userInput.trim()
             }
-        ]
+        ],
+        store: false
     };
 
     console.log("Foundry Agent URL:", url);
     console.log("Foundry Agent:", agent.name);
-    console.log("Foundry Agent Version:", agent.version || "default");
 
     const response = await fetch(url, {
         method: "POST",
@@ -332,21 +377,21 @@ window.runFoundryAgent = async function(
         if (response.status === 401) {
             throw new Error(
                 "401 Unauthorized: The Microsoft Entra token "
-                +"is missing, expired, or has the wrong audience."
+                + "is missing, expired, or has the wrong audience."
             );
         }
 
         if (response.status === 403) {
             throw new Error(
                 "403 Forbidden: The signed-in user does not have "
-                +"permission to invoke this Foundry Agent."
+                + "permission to invoke this Foundry Agent."
             );
         }
 
         if (response.status === 404) {
             throw new Error(
                 "404 Not Found: The Foundry Agent endpoint, "
-                +"project, or agent name may be incorrect."
+                + "project, or agent name may be incorrect."
             );
         }
 
@@ -356,8 +401,8 @@ window.runFoundryAgent = async function(
             );
 
             throw new Error(
-                `Rate limit exceeded. Please retry after ` +
-                `${retryAfter} seconds.`
+                `Rate limit exceeded. Please retry after `
+                + `${retryAfter} seconds.`
             );
         }
 
@@ -367,9 +412,6 @@ window.runFoundryAgent = async function(
     }
 
     const data = await response.json();
-
-    console.log("Raw Foundry Agent response:", data);
-
     let outputText = "";
 
     if (typeof data.output_text === "string") {
@@ -420,8 +462,7 @@ window.runFoundryAgent = async function(
     return outputText;
 };
 
-// Send user input to the selected Foundry Agent
-// and fill the active Word document from the returned JSON.
+// Send one independent user request to the selected agent.
 window.processAgentRequest = async function() {
     const sourceText = document.getElementById("source-text");
     const runAgentBtn = document.getElementById("run-agent-btn");
@@ -442,34 +483,39 @@ window.processAgentRequest = async function() {
         return;
     }
 
-    if (!agentConfig.endpoint) {
-        console.error("AGENT_CONFIG.endpoint is missing.");
-        agentStatus.textContent = "כתובת הסוכן חסרה.";
-        return;
-    }
-
-    if (!agentConfig.apiVersion) {
-        console.error("AGENT_CONFIG.apiVersion is missing.");
-        agentStatus.textContent = "גרסת ה־API של הסוכן חסרה.";
-        return;
-    }
-
-    if (!agentConfig.agents) {
-        console.error("AGENT_CONFIG.agents is missing.");
-        agentStatus.textContent = "הגדרת הסוכנים חסרה.";
-        return;
-    }
-
     if (!agentSelector) {
         console.error("Agent selector element is missing.");
-        agentStatus.textContent = "בחירת הסוכן אינה זמינה.";
+        agentStatus.textContent =
+            "בחירת הסוכן אינה זמינה.";
         return;
     }
 
     const agentId = agentSelector.value;
 
     if (!agentId) {
-        agentStatus.textContent = "יש לבחור תבנית מסמך.";
+        agentStatus.textContent =
+            "יש לבחור תבנית מסמך.";
+        return;
+    }
+
+    if (!agentConfig.endpoint) {
+        console.error("AGENT_CONFIG.endpoint is missing.");
+        agentStatus.textContent =
+            "כתובת הסוכן חסרה.";
+        return;
+    }
+
+    if (!agentConfig.apiVersion) {
+        console.error("AGENT_CONFIG.apiVersion is missing.");
+        agentStatus.textContent =
+            "גרסת ה־API של הסוכן חסרה.";
+        return;
+    }
+
+    if (!agentConfig.agents) {
+        console.error("AGENT_CONFIG.agents is missing.");
+        agentStatus.textContent =
+            "הגדרת הסוכנים חסרה.";
         return;
     }
 
@@ -496,15 +542,15 @@ window.processAgentRequest = async function() {
             );
         }
 
-        if (typeof window.fillFormFromJson !== "function") {
-            throw new Error(
-                "Function fillFormFromJson is not defined on window."
-            );
-        }
-
         if (typeof window.runFoundryAgent !== "function") {
             throw new Error(
                 "Function runFoundryAgent is not defined on window."
+            );
+        }
+
+        if (typeof window.fillFormFromJson !== "function") {
+            throw new Error(
+                "Function fillFormFromJson is not defined on window."
             );
         }
 
@@ -524,7 +570,8 @@ window.processAgentRequest = async function() {
 
         await window.fillFormFromJson(agentOutput);
 
-        agentStatus.textContent = "המסמך מולא בהצלחה.";
+        agentStatus.textContent =
+            "המסמך מולא בהצלחה.";
     } catch (error) {
         console.error(
             "Agent processing error:",

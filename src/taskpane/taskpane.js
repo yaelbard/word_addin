@@ -26,44 +26,96 @@ window.closeAgentsSidebar = function() {
     overlay.style.display = "none";
 };
 
+window.handleAgentChange = function() {
+    const agentSelector = document.getElementById("agent-selector");
+    const agentStatus = document.getElementById("agent-status");
+
+    if (!agentSelector) {
+        console.error("Agent selector element is missing.");
+        return;
+    }
+
+    const agentId = agentSelector.value;
+
+    if (!agentId) {
+        console.warn("No agent selected.");
+        return;
+    }
+
+    if (agentStatus) {
+        agentStatus.textContent = "";
+    }
+};
+window.handleAgentRun = function() {
+    if (
+        typeof window.processAgentRequest === "function"
+    ) {
+        window.processAgentRequest();
+    } else {
+        console.error(
+            "processAgentRequest is not defined on window."
+        );
+    }
+};
+
 Office.onReady((info) => {
     if (info.host !== Office.HostType.Word) {
         return;
     }
+
     const sendBtn = document.getElementById("send-btn");
     const inputArea = document.getElementById("prompt-input");
     const fileInput = document.getElementById("doc-upload");
     const removeFileBtn = document.getElementById("remove-file-btn");
 
     if (sendBtn) {
-        sendBtn.addEventListener("click", window.handleSend);
+        sendBtn.addEventListener(
+            "click",
+            window.handleSend
+        );
     }
 
     if (inputArea) {
-        inputArea.addEventListener("keydown", (event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                if (typeof window.handleSend === "function") {
-                    window.handleSend();
+        inputArea.addEventListener(
+            "keydown",
+            (event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+
+                    if (
+                        typeof window.handleSend === "function"
+                    ) {
+                        window.handleSend();
+                    }
                 }
             }
-        });
+        );
     }
 
     if (fileInput) {
-        fileInput.addEventListener("change", (event) => {
-            if (typeof window.handleFileUpload === "function") {
-                window.handleFileUpload(event);
+        fileInput.addEventListener(
+            "change",
+            (event) => {
+                if (
+                    typeof window.handleFileUpload === "function"
+                ) {
+                    window.handleFileUpload(event);
+                }
             }
-        });
+        );
     }
 
     if (removeFileBtn) {
-        removeFileBtn.addEventListener("click", () => {
-            if (typeof window.clearAttachedFiles === "function") {
-                window.clearAttachedFiles();
+        removeFileBtn.addEventListener(
+            "click",
+            () => {
+                if (
+                    typeof window.clearAttachedFiles === "function"
+                ) {
+                    window.clearAttachedFiles();
+                }
             }
-        });
+        );
     }
 
     const openSidebarBtn = document.getElementById(
@@ -75,12 +127,24 @@ Office.onReady((info) => {
     const overlay = document.getElementById(
         "agents-sidebar-overlay"
     );
-    const runAgentBtn = document.getElementById("run-agent-btn");
+    const runAgentBtn = document.getElementById(
+        "run-agent-btn"
+    );
+    const agentSelector = document.getElementById(
+        "agent-selector"
+    );
 
     if (openSidebarBtn) {
         openSidebarBtn.addEventListener(
             "click",
             window.openAgentsSidebar
+        );
+    }
+
+    if (agentSelector) {
+        agentSelector.addEventListener(
+            "change",
+            window.handleAgentChange
         );
     }
 
@@ -99,11 +163,15 @@ Office.onReady((info) => {
     }
 
     if (runAgentBtn) {
+    if (!runAgentBtn.dataset.agentHandlerAttached) {
         runAgentBtn.addEventListener(
             "click",
-            window.processAgentRequest
+            window.handleAgentRun
         );
+
+        runAgentBtn.dataset.agentHandlerAttached = "true";
     }
+}
 });
 
 // Core chat logic
@@ -144,7 +212,9 @@ window.handleSend = async function() {
             body.load("text");
             await context.sync();
 
-            docBodyText = body.text ? body.text.trim() : "";
+            docBodyText = body.text
+                ? body.text.trim()
+                : "";
         });
 
         let fullPrompt = userText;
@@ -161,6 +231,7 @@ window.handleSend = async function() {
             const fileNames = files
                 .map((item) => item.file.name)
                 .join(", ");
+
             const filesCombinedText = files
                 .map((item) => item.text)
                 .join("\n\n");
@@ -173,18 +244,27 @@ window.handleSend = async function() {
         }
 
         if (typeof window.callAzureAI === "function") {
-            await window.callAzureAI(userText, fullPrompt);
+            await window.callAzureAI(
+                userText,
+                fullPrompt
+            );
         } else {
             console.error(
                 "callAzureAI is not defined on window."
             );
         }
 
-        if (typeof window.clearAttachedFiles === "function") {
+        if (
+            typeof window.clearAttachedFiles === "function"
+        ) {
             window.clearAttachedFiles();
         }
     } catch (error) {
-        console.error("Error during processing:", error);
+        console.error(
+            "Error during processing:",
+            error
+        );
+
         input.value = userText;
     } finally {
         if (loader) {
