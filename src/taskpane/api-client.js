@@ -217,6 +217,7 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
 };
 
 // Fill the Word document from the agent JSON response.
+// Fill the Word document from the agent JSON response.
 window.fillFormFromJson = async function(agentResponse) {
     try {
         const formData = (
@@ -235,20 +236,27 @@ window.fillFormFromJson = async function(agentResponse) {
             );
         }
 
+        let totalFound = 0;
+        let totalReplaced = 0;
+        const missingTags = [];
+
+        console.log(
+            "Agent JSON keys:",
+            Object.keys(formData)
+        );
+
         await Word.run(async (context) => {
             const body = context.document.body;
 
             for (const [key, value] of Object.entries(formData)) {
                 if (typeof value !== "string") {
                     console.warn(
-                        `Skipping field "${key}": `
-                        + "value is not a string."
+                        `Skipping "${key}": value is not a string.`
                     );
                     continue;
                 }
 
                 const tag = `{{${key}}}`;
-
                 const ranges = body.search(tag, {
                     matchCase: true,
                     matchWholeWord: false
@@ -257,29 +265,66 @@ window.fillFormFromJson = async function(agentResponse) {
                 ranges.load("items/text");
                 await context.sync();
 
+                console.log(
+                    `Tag "${tag}" found ${ranges.items.length} time(s).`
+                );
+
                 if (ranges.items.length === 0) {
-                    console.warn(
-                        `Tag "${tag}" was not found in the document.`
-                    );
+                    missingTags.push(tag);
                     continue;
                 }
 
-                for (let index = ranges.items.length - 1; index >= 0; index--) {
+                totalFound += ranges.items.length;
+                let fieldReplaced = 0;
+
+                for (
+                    let index = ranges.items.length - 1;
+                    index >= 0;
+                    index--
+                ) {
                     const range = ranges.items[index];
 
-                    if (range.text === tag) {
-                        range.insertText(value, "Replace");
+                    if (range.text !== tag) {
+                        console.warn(
+                            `Unexpected match for "${tag}":`,
+                            range.text
+                        );
+                        continue;
                     }
+
+                    range.insertText(value, "Replace");
+                    fieldReplaced++;
                 }
 
                 await context.sync();
+                totalReplaced += fieldReplaced;
+
+                console.log(
+                    `Field "${key}": ${fieldReplaced} replacement(s).`
+                );
             }
         });
+
+        console.log("Form filling summary:", {
+            totalFound,
+            totalReplaced,
+            missingTags
+        });
+
+        if (totalReplaced === 0) {
+            throw new Error(
+                "לא הוחלפה אף תגית במסמך. "
+                + "בדקי את שמות המפתחות ב-JSON מול התגיות במסמך."
+            );
+        }
+
+        return {
+            totalFound,
+            totalReplaced,
+            missingTags
+        };
     } catch (error) {
-        console.error(
-            "Form filling error:",
-            error
-        );
+        console.error("Form filling error:", error);
         throw error;
     }
 };
@@ -544,11 +589,11 @@ window.processAgentRequest = async function() {
             userInput
         );
 
-        await window.fillFormFromJson(agentOutput);
-
-        agentStatus.textContent =
-            "המסמך מולא בהצלחה.";
-    } catch (error) {
+       const fillResult = await window.fillFormFromJson( agentOutput);
+        agentStatus.textContent = `המילוי הסתיים: ${fillResult.totalReplaced} `
+    + "החלפות בוצעו.";
+    } 
+    catch (error) {
         console.error(
             "Agent processing error:",
             error
