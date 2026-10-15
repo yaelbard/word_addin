@@ -5,8 +5,8 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Word-GPT-Assistant"/>
   <Description DefaultValue="A template to get started."/>
-  <IconUrl DefaultValue="https://yaelbard.github.io/word_addin/assets/icon-32.png"/>
-  <HighResolutionIconUrl DefaultValue="https://yaelbard.github.io/word_addin/assets/icon-64.png"/>
+  <IconUrl DefaultValue="https://yaelbard.github.io/word_addin/assets/wordgptlogo.jpg"/>
+  <HighResolutionIconUrl DefaultValue="https://yaelbard.github.io/word_addin/assets/wordgptlogo.jpg"/>
   <SupportUrl DefaultValue="https://www.contoso.com/help"/>
   <AppDomains>
     <AppDomain>https://yaelbard.github.io</AppDomain>
