@@ -30,15 +30,29 @@ window.AGENT_CONFIG = {
   endpoint: "https://gpt-agents-1972-foundry.services.ai.azure.com/api/projects/gpt-agents-1972-proj",
   apiVersion: "v1",
   agents: {
-    "deed-of-sale-007":{
+    "deed-of-sale-007":
+    {
       name: "deed-of-sale-007",
     },
-    "cautionaty-note-cancel-request":{
-      name: "cautionaty-note-cancel-request"
+    "cautionary-note-cancel-request-006":
+    {
+      name: "cautionary-note-cancel-request-006"
     },
     "deed-of-sale-009":
     {
       name:"deed-of-sale-009"
+    },
+    "cautionary-note-request-agreement-005":
+    {
+      name: "cautionary-note-request-agreement-005"
+    },
+    "cautionary-note-request-003":
+    {
+      name: "cautionary-note-request-003"
+    },
+    "land-registration-request-020":
+    {
+      name: "land-registration-request-020"
     }
   }
 };

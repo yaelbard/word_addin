@@ -217,7 +217,6 @@ window.callAzureAI = async function(displayPrompt, apiPrompt) {
 };
 
 // Fill the Word document from the agent JSON response.
-// Fill the Word document from the agent JSON response.
 window.fillFormFromJson = async function(agentResponse) {
     try {
         const formData = (
@@ -240,13 +239,9 @@ window.fillFormFromJson = async function(agentResponse) {
         let totalReplaced = 0;
         const missingTags = [];
 
-        console.log(
-            "Agent JSON keys:",
-            Object.keys(formData)
-        );
-
         await Word.run(async (context) => {
             const body = context.document.body;
+            const replacements = [];
 
             for (const [key, value] of Object.entries(formData)) {
                 if (typeof value !== "string") {
@@ -265,44 +260,54 @@ window.fillFormFromJson = async function(agentResponse) {
                 ranges.load("items/text");
                 await context.sync();
 
-                console.log(
-                    `Tag "${tag}" found ${ranges.items.length} time(s).`
+                const matches = ranges.items.filter(
+                    (range) => range.text === tag
                 );
 
-                if (ranges.items.length === 0) {
+                if (matches.length === 0) {
                     missingTags.push(tag);
                     continue;
                 }
 
-                totalFound += ranges.items.length;
-                let fieldReplaced = 0;
+                totalFound += matches.length;
 
-                for (
-                    let index = ranges.items.length - 1;
-                    index >= 0;
-                    index--
-                ) {
-                    const range = ranges.items[index];
+                for (const range of matches) {
+                    replacements.push({
+                        range,
+                        tag,
+                        value
+                    });
+                }
+            }
 
-                    if (range.text !== tag) {
-                        console.warn(
-                            `Unexpected match for "${tag}":`,
-                            range.text
-                        );
-                        continue;
-                    }
+            const uniqueReplacements = [];
+            const seenRanges = new Set();
 
-                    range.insertText(value, "Replace");
-                    fieldReplaced++;
+            for (const item of replacements) {
+                const rangeKey = (
+                    `${item.tag}:${item.range.text}:`
+                    + `${uniqueReplacements.length}`
+                );
+
+                if (seenRanges.has(rangeKey)) {
+                    continue;
                 }
 
-                await context.sync();
-                totalReplaced += fieldReplaced;
-
-                console.log(
-                    `Field "${key}": ${fieldReplaced} replacement(s).`
-                );
+                seenRanges.add(rangeKey);
+                uniqueReplacements.push(item);
             }
+
+            for (
+                let index = uniqueReplacements.length - 1;
+                index >= 0;
+                index--
+            ) {
+                const item = uniqueReplacements[index];
+                item.range.insertText(item.value, "Replace");
+                totalReplaced++;
+            }
+
+            await context.sync();
         });
 
         console.log("Form filling summary:", {
@@ -328,6 +333,8 @@ window.fillFormFromJson = async function(agentResponse) {
         throw error;
     }
 };
+
+
 // Send one independent request to the selected Foundry Agent.
 window.runFoundryAgent = async function(
     accessToken,
