@@ -96,7 +96,7 @@ window.extractTextFromPdf = async function(arrayBuffer) {
   const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
   const pdfDoc = await loadingTask.promise;
   let fullText = "";
-  const lengthThreshold = 30;
+  const lengthThreshold = 100;
   let ocrWorker = null;
 
   try {
